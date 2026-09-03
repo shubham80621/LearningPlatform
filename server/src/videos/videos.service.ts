@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { UploadService } from '../uploads/upload.service';
 import { toPublicMediaUrl } from '../uploads/upload.constants';
+import { Question, QuestionDocument } from '../questions/schemas/question.schema';
 import { CreateVideoDto } from './dto/create-video.dto';
 import { UpdateVideoDto } from './dto/update-video.dto';
 import { Video, VideoDocument } from './schemas/video.schema';
@@ -11,6 +12,7 @@ import { Video, VideoDocument } from './schemas/video.schema';
 export class VideosService {
   constructor(
     @InjectModel(Video.name) private videoModel: Model<VideoDocument>,
+    @InjectModel(Question.name) private questionModel: Model<QuestionDocument>,
     private uploadService: UploadService,
   ) {}
 
@@ -89,6 +91,7 @@ export class VideosService {
 
     this.uploadService.deleteByUrl(video.thumbnailUrl);
     this.uploadService.deleteByUrl(video.videoUrl);
+    await this.questionModel.deleteMany({ videoId: video._id }).exec();
     await video.deleteOne();
 
     return { id: video._id.toString(), deleted: true };

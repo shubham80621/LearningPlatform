@@ -163,6 +163,12 @@ export default function AdminVideosPage() {
                           >
                             Edit
                           </Link>
+                          <Link
+                            to={`/admin/videos/${video.id}/edit?tab=questions`}
+                            className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm font-medium text-ink hover:bg-stone-50"
+                          >
+                            Questions
+                          </Link>
                           {video.isPublished ? (
                             <button
                               type="button"

@@ -32,3 +32,16 @@ export interface StoredUpload {
   mimeType: string;
   size: number;
 }
+
+export type QuestionType = 'single' | 'multiple' | 'short';
+
+export interface Question {
+  id: string;
+  videoId: string;
+  timestamp: number;
+  type: QuestionType;
+  questionText: string;
+  options: string[];
+  correctOptionIndexes: number[];
+  correctAnswer: string;
+}

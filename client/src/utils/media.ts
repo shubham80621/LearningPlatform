@@ -20,6 +20,17 @@ export function formatDuration(seconds: number) {
   return `${minutes}:${String(rest).padStart(2, '0')}`;
 }
 
+export function parseTimestamp(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return NaN;
+  if (/^\d+$/.test(trimmed)) return Number(trimmed);
+  const parts = trimmed.split(':').map((part) => Number(part));
+  if (parts.some((part) => Number.isNaN(part))) return NaN;
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  return NaN;
+}
+
 export function readVideoDuration(file: File) {
   return new Promise<number>((resolve, reject) => {
     const objectUrl = URL.createObjectURL(file);
