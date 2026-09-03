@@ -72,18 +72,3 @@ LearningPlatform/
 └── docker-compose.yml
 ```
 
-## Development Status
-
-- [x] NestJS backend scaffold
-- [x] React frontend scaffold
-- [x] Docker MongoDB setup
-- [ ] Auth (JWT + roles)
-- [ ] Video CRUD + questions
-- [ ] Assignments + progress tracking
-- [ ] Admin reporting
-- [ ] Full Docker Compose (server + client)
-
-## Notes
-
-- During development, MongoDB runs in Docker while frontend/backend run with `npm run dev` for faster hot reload.
-- Full one-command Docker setup will be added before submission.
