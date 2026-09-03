@@ -2,9 +2,15 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
+import AdminLayout from './components/AdminLayout';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import AdminDashboardPage from './pages/admin/DashboardPage';
+import AdminVideosPage from './pages/admin/VideosPage';
+import AdminLearnersPage from './pages/admin/LearnersPage';
+import CreateLearnerPage from './pages/admin/CreateLearnerPage';
+import AdminAssignmentsPage from './pages/admin/AssignmentsPage';
+import AdminReportsPage from './pages/admin/ReportsPage';
 import LearnerDashboardPage from './pages/learner/DashboardPage';
 
 function App() {
@@ -19,19 +25,16 @@ function App() {
             path="/admin"
             element={
               <ProtectedRoute allowedRoles={['admin']}>
-                <Layout
-                  title="Admin Panel"
-                  links={[
-                    { to: '/admin', label: 'Dashboard' },
-                    { to: '/admin/videos', label: 'Videos' },
-                    { to: '/admin/assignments', label: 'Assignments' },
-                    { to: '/admin/reports', label: 'Reports' },
-                  ]}
-                />
+                <AdminLayout />
               </ProtectedRoute>
             }
           >
             <Route index element={<AdminDashboardPage />} />
+            <Route path="videos" element={<AdminVideosPage />} />
+            <Route path="learners" element={<AdminLearnersPage />} />
+            <Route path="learners/new" element={<CreateLearnerPage />} />
+            <Route path="assignments" element={<AdminAssignmentsPage />} />
+            <Route path="reports" element={<AdminReportsPage />} />
           </Route>
 
           <Route
