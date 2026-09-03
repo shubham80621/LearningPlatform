@@ -33,7 +33,13 @@ npm install
 npm run start:dev
 ```
 
-API: `http://localhost:3000/api`
+API: `http://localhost:3000/api`  
+Swagger UI: `http://localhost:3000/api/docs`
+
+1. Open Swagger UI in the browser.
+2. Call `POST /api/auth/login` (e.g. `admin@example.com` / `admin123`).
+3. Copy the `access_token` from the response.
+4. Click **Authorize**, paste the token only (Swagger adds `Bearer `), and try protected endpoints.
 
 ### 3. Start Frontend
 
