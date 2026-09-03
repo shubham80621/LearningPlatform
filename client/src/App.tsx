@@ -7,6 +7,8 @@ import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import AdminDashboardPage from './pages/admin/DashboardPage';
 import AdminVideosPage from './pages/admin/VideosPage';
+import CreateVideoPage from './pages/admin/CreateVideoPage';
+import EditVideoPage from './pages/admin/EditVideoPage';
 import AdminLearnersPage from './pages/admin/LearnersPage';
 import CreateLearnerPage from './pages/admin/CreateLearnerPage';
 import AdminAssignmentsPage from './pages/admin/AssignmentsPage';
@@ -31,6 +33,8 @@ function App() {
           >
             <Route index element={<AdminDashboardPage />} />
             <Route path="videos" element={<AdminVideosPage />} />
+            <Route path="videos/new" element={<CreateVideoPage />} />
+            <Route path="videos/:id/edit" element={<EditVideoPage />} />
             <Route path="learners" element={<AdminLearnersPage />} />
             <Route path="learners/new" element={<CreateLearnerPage />} />
             <Route path="assignments" element={<AdminAssignmentsPage />} />

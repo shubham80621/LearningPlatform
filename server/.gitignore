@@ -3,4 +3,7 @@ dist/
 .env
 .DS_Store
 *.log
-coverage/
+uploads/images/*
+!uploads/images/.gitkeep
+uploads/videos/*
+!uploads/videos/.gitkeep

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { listLearners } from '../../api/users';
+import { listVideos } from '../../api/videos';
 import { useAuth } from '../../contexts/AuthContext';
-import type { User } from '../../types';
+import type { User, Video } from '../../types';
 import AdminPageHeader from '../../components/admin/AdminPageHeader';
 import AdminSectionToolbar from '../../components/admin/AdminSectionToolbar';
 
@@ -17,8 +18,7 @@ const kpiCards = [
     key: 'videos',
     label: 'Published Videos',
     tone: 'bg-[#fff4e5] text-[#9a3412]',
-    hint: 'Coming with video CRUD',
-    placeholder: '—',
+    hint: 'Ready to assign',
   },
   {
     key: 'assignments',
@@ -39,14 +39,17 @@ const kpiCards = [
 export default function AdminDashboardPage() {
   const { user } = useAuth();
   const [learners, setLearners] = useState<User[]>([]);
+  const [videos, setVideos] = useState<Video[]>([]);
   const [error, setError] = useState('');
 
   useEffect(() => {
     let active = true;
 
-    listLearners()
-      .then((data) => {
-        if (active) setLearners(data);
+    Promise.all([listLearners(), listVideos()])
+      .then(([learnerData, videoData]) => {
+        if (!active) return;
+        setLearners(learnerData);
+        setVideos(videoData);
       })
       .catch(() => {
         if (active) setError('Could not load dashboard data.');
@@ -77,7 +80,7 @@ export default function AdminDashboardPage() {
               Create learner
             </Link>
             <Link
-              to="/admin/videos"
+              to="/admin/videos/new"
               className="rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-medium text-ink hover:bg-stone-50"
             >
               Create video
@@ -95,7 +98,11 @@ export default function AdminDashboardPage() {
       <section className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {kpiCards.map((card) => {
           const value =
-            card.key === 'learners' ? String(learners.length) : card.placeholder;
+            card.key === 'learners'
+              ? String(learners.length)
+              : card.key === 'videos'
+                ? String(videos.filter((video) => video.isPublished).length)
+                : card.placeholder;
 
           return (
             <article key={card.key} className={`rounded-2xl p-5 ${card.tone}`}>
