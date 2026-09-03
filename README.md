@@ -69,6 +69,29 @@ PORT=3000
 VITE_API_URL=http://localhost:3000/api
 ```
 
+## Testing
+
+Backend unit tests use Jest (NestJS default). Auth coverage includes `AuthService` (login/register) and `RolesGuard` (RBAC).
+
+```bash
+cd server
+npm test
+```
+
+Run only auth tests:
+
+```bash
+cd server
+npm test -- --testPathPattern=auth
+```
+
+Coverage report:
+
+```bash
+cd server
+npm run test:cov
+```
+
 ## Project Structure
 
 ```
