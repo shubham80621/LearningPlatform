@@ -42,3 +42,58 @@ input:focus-visible,
   outline: 2px solid #0f766e;
   outline-offset: 2px;
 }
+
+@keyframes quiz-check-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.04);
+    opacity: 0.85;
+  }
+}
+
+@keyframes quiz-reveal-in {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes quiz-option-flash {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.03);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.quiz-checking {
+  animation: quiz-check-pulse 0.9s ease-in-out infinite;
+}
+
+.quiz-reveal {
+  animation: quiz-reveal-in 0.45s ease-out both;
+}
+
+.quiz-option-reveal {
+  animation: quiz-option-flash 0.5s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quiz-checking,
+  .quiz-reveal,
+  .quiz-option-reveal {
+    animation: none;
+  }
+}

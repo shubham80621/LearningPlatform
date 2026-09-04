@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -15,6 +16,8 @@ import { toPublicMediaUrl } from '../uploads/upload.constants';
 import { User, UserDocument, UserRole } from '../users/schemas/user.schema';
 import { Video, VideoDocument } from '../videos/schemas/video.schema';
 import { CreateAssignmentsDto } from './dto/create-assignments.dto';
+import { SubmitAnswerDto } from './dto/submit-answer.dto';
+import { UpdateProgressDto } from './dto/update-progress.dto';
 import {
   Assignment,
   AssignmentDocument,
@@ -191,6 +194,261 @@ export class AssignmentsService {
     }
 
     return { assignments, videoMap, questionsByVideo };
+  }
+
+  async getMineById(learnerId: string, assignmentId: string) {
+    const { assignment, video, questions } = await this.loadOwnedAssignment(
+      learnerId,
+      assignmentId,
+      true,
+    );
+    return this.toLearnerWatchResponse(assignment, video, questions);
+  }
+
+  async updateProgress(
+    learnerId: string,
+    assignmentId: string,
+    dto: UpdateProgressDto,
+  ) {
+    const { assignment, video, questions } = await this.loadOwnedAssignment(
+      learnerId,
+      assignmentId,
+      true,
+    );
+
+    const clampedTime = Math.min(
+      Math.max(0, dto.lastWatchedTimestamp),
+      video.duration,
+    );
+    const pct = Math.min(
+      100,
+      Math.round((clampedTime / Math.max(video.duration, 1)) * 100),
+    );
+
+    assignment.lastWatchedTimestamp = Math.max(
+      assignment.lastWatchedTimestamp ?? 0,
+      clampedTime,
+    );
+    assignment.completionPercentage = Math.max(
+      assignment.completionPercentage ?? 0,
+      pct,
+    );
+
+    if (assignment.status === AssignmentStatus.ASSIGNED) {
+      assignment.status = AssignmentStatus.IN_PROGRESS;
+    }
+
+    this.maybeComplete(assignment, questions);
+    await assignment.save();
+
+    return {
+      id: assignment._id.toString(),
+      status: assignment.status,
+      lastWatchedTimestamp: assignment.lastWatchedTimestamp,
+      completionPercentage: assignment.completionPercentage,
+    };
+  }
+
+  async submitAnswer(
+    learnerId: string,
+    assignmentId: string,
+    dto: SubmitAnswerDto,
+  ) {
+    const { assignment, video, questions } = await this.loadOwnedAssignment(
+      learnerId,
+      assignmentId,
+      true,
+    );
+
+    const question = questions.find(
+      (item) => item._id.toString() === dto.questionId,
+    );
+    if (!question) {
+      throw new BadRequestException('Question does not belong to this video');
+    }
+
+    const already = (assignment.responses ?? []).some(
+      (response) => response.questionId.toString() === dto.questionId,
+    );
+    if (already) {
+      throw new ConflictException('This question was already answered');
+    }
+
+    const graded = this.gradeAnswer(question, dto);
+    assignment.responses = [
+      ...(assignment.responses ?? []),
+      {
+        questionId: new Types.ObjectId(dto.questionId),
+        selectedOptionIndexes: graded.selectedOptionIndexes,
+        shortAnswer: graded.shortAnswer,
+        isCorrect: graded.isCorrect,
+        answeredAt: new Date(),
+      },
+    ];
+
+    if (assignment.status === AssignmentStatus.ASSIGNED) {
+      assignment.status = AssignmentStatus.IN_PROGRESS;
+    }
+
+    this.maybeComplete(assignment, questions);
+    await assignment.save();
+
+    return this.toLearnerWatchResponse(assignment, video, questions);
+  }
+
+  private async loadOwnedAssignment(
+    learnerId: string,
+    assignmentId: string,
+    requirePublished: boolean,
+  ) {
+    if (!Types.ObjectId.isValid(assignmentId)) {
+      throw new NotFoundException('Assignment not found');
+    }
+
+    const assignment = await this.assignmentModel.findById(assignmentId).exec();
+    if (!assignment) {
+      throw new NotFoundException('Assignment not found');
+    }
+    if (assignment.learnerId.toString() !== learnerId) {
+      throw new ForbiddenException('You do not have access to this assignment');
+    }
+
+    const video = await this.videoModel.findById(assignment.videoId).exec();
+    if (!video || (requirePublished && !video.isPublished)) {
+      throw new NotFoundException('Video is not available');
+    }
+
+    const questions = await this.questionModel
+      .find({ videoId: video._id })
+      .sort({ timestamp: 1 })
+      .exec();
+
+    return { assignment, video, questions };
+  }
+
+  private maybeComplete(
+    assignment: AssignmentDocument,
+    questions: QuestionDocument[],
+  ) {
+    const answeredIds = new Set(
+      (assignment.responses ?? []).map((response) =>
+        response.questionId.toString(),
+      ),
+    );
+    const allAnswered = questions.every((question) =>
+      answeredIds.has(question._id.toString()),
+    );
+    if (assignment.completionPercentage >= 95 && allAnswered) {
+      assignment.status = AssignmentStatus.COMPLETED;
+    }
+  }
+
+  private gradeAnswer(question: QuestionDocument, dto: SubmitAnswerDto) {
+    if (question.type === QuestionType.SHORT) {
+      const shortAnswer = (dto.shortAnswer ?? '').trim();
+      if (!shortAnswer) {
+        throw new BadRequestException('Short answer is required');
+      }
+      const expected = (question.correctAnswer ?? '').trim().toLowerCase();
+      const isCorrect = shortAnswer.toLowerCase() === expected;
+      return { selectedOptionIndexes: [] as number[], shortAnswer, isCorrect };
+    }
+
+    const selected = [...new Set(dto.selectedOptionIndexes ?? [])].sort(
+      (a, b) => a - b,
+    );
+    if (selected.length === 0) {
+      throw new BadRequestException('Select at least one option');
+    }
+    if (question.type === QuestionType.SINGLE && selected.length !== 1) {
+      throw new BadRequestException('Select exactly one option');
+    }
+    const maxIndex = question.options.length - 1;
+    if (selected.some((index) => index < 0 || index > maxIndex)) {
+      throw new BadRequestException('Invalid option selected');
+    }
+
+    const correct = [...(question.correctOptionIndexes ?? [])].sort(
+      (a, b) => a - b,
+    );
+    const isCorrect =
+      selected.length === correct.length &&
+      selected.every((value, index) => value === correct[index]);
+
+    return {
+      selectedOptionIndexes: selected,
+      shortAnswer: '',
+      isCorrect,
+    };
+  }
+
+  private toLearnerWatchResponse(
+    assignment: AssignmentDocument,
+    video: VideoDocument,
+    questions: QuestionDocument[],
+  ) {
+    const responseByQuestion = new Map(
+      (assignment.responses ?? []).map((response) => [
+        response.questionId.toString(),
+        response,
+      ]),
+    );
+
+    const questionRows = questions.map((question) => {
+      const response = responseByQuestion.get(question._id.toString());
+      const answered = Boolean(response);
+      return {
+        id: question._id.toString(),
+        timestamp: question.timestamp,
+        type: question.type,
+        questionText: question.questionText,
+        options: question.options,
+        answered,
+        isCorrect: answered ? (response?.isCorrect ?? null) : null,
+        selectedOptionIndexes: answered
+          ? (response?.selectedOptionIndexes ?? [])
+          : undefined,
+        shortAnswer: answered ? (response?.shortAnswer ?? '') : undefined,
+        correctOptionIndexes: answered
+          ? (question.correctOptionIndexes ?? [])
+          : undefined,
+        correctAnswer: answered
+          ? this.formatCorrectAnswer(question)
+          : undefined,
+        answeredAt: answered ? (response?.answeredAt ?? null) : null,
+      };
+    });
+
+    const answered = questionRows.filter((row) => row.answered).length;
+    const correct = questionRows.filter((row) => row.isCorrect === true).length;
+    const incorrect = questionRows.filter(
+      (row) => row.isCorrect === false,
+    ).length;
+    const totalQuestions = questions.length;
+
+    return {
+      id: assignment._id.toString(),
+      videoId: assignment.videoId.toString(),
+      status: assignment.status,
+      lastWatchedTimestamp: assignment.lastWatchedTimestamp,
+      completionPercentage: assignment.completionPercentage,
+      stats: {
+        totalQuestions,
+        answered,
+        unanswered: Math.max(totalQuestions - answered, 0),
+        correct,
+        incorrect,
+      },
+      questions: questionRows,
+      video: {
+        id: video._id.toString(),
+        title: video.title,
+        description: video.description,
+        thumbnailUrl: toPublicMediaUrl(video.thumbnailUrl),
+        videoUrl: toPublicMediaUrl(video.videoUrl),
+        duration: video.duration,
+      },
+    };
   }
 
   async remove(id: string) {

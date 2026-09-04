@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Request,
   UseGuards,
@@ -15,6 +16,8 @@ import { RolesGuard } from '../auth/roles.guard';
 import { UserRole } from '../users/schemas/user.schema';
 import { AssignmentsService } from './assignments.service';
 import { CreateAssignmentsDto } from './dto/create-assignments.dto';
+import { SubmitAnswerDto } from './dto/submit-answer.dto';
+import { UpdateProgressDto } from './dto/update-progress.dto';
 
 type AuthRequest = {
   user: { userId: string; email: string; role: string; name: string };
@@ -41,6 +44,35 @@ export class AssignmentsController {
   @ApiOperation({ summary: 'List my assigned videos (learner home feed)' })
   listMine(@Request() req: AuthRequest) {
     return this.assignmentsService.findMine(req.user.userId);
+  }
+
+  @Get('me/:id')
+  @Roles(UserRole.LEARNER)
+  @ApiOperation({ summary: 'Get an assigned video for watching (learner)' })
+  getMine(@Param('id') id: string, @Request() req: AuthRequest) {
+    return this.assignmentsService.getMineById(req.user.userId, id);
+  }
+
+  @Patch('me/:id/progress')
+  @Roles(UserRole.LEARNER)
+  @ApiOperation({ summary: 'Save watch progress (learner)' })
+  updateProgress(
+    @Param('id') id: string,
+    @Body() dto: UpdateProgressDto,
+    @Request() req: AuthRequest,
+  ) {
+    return this.assignmentsService.updateProgress(req.user.userId, id, dto);
+  }
+
+  @Post('me/:id/answers')
+  @Roles(UserRole.LEARNER)
+  @ApiOperation({ summary: 'Submit a quiz answer (learner)' })
+  submitAnswer(
+    @Param('id') id: string,
+    @Body() dto: SubmitAnswerDto,
+    @Request() req: AuthRequest,
+  ) {
+    return this.assignmentsService.submitAnswer(req.user.userId, id, dto);
   }
 
   @Get('learner/:learnerId')

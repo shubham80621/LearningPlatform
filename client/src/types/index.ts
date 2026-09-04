@@ -60,6 +60,39 @@ export interface AssignmentVideoSummary {
   isPublished?: boolean;
 }
 
+export interface LearnerWatchQuestion {
+  id: string;
+  timestamp: number;
+  type: QuestionType;
+  questionText: string;
+  options: string[];
+  answered: boolean;
+  isCorrect: boolean | null;
+  selectedOptionIndexes?: number[];
+  shortAnswer?: string;
+  correctOptionIndexes?: number[];
+  correctAnswer?: string;
+  answeredAt?: string | null;
+}
+
+export interface LearnerWatchSession {
+  id: string;
+  videoId: string;
+  status: AssignmentStatus;
+  lastWatchedTimestamp: number;
+  completionPercentage: number;
+  stats: AssignmentStats;
+  questions: LearnerWatchQuestion[];
+  video: {
+    id: string;
+    title: string;
+    description: string;
+    thumbnailUrl: string;
+    videoUrl: string;
+    duration: number;
+  };
+}
+
 /** Learner home-feed item (no answer keys). */
 export interface LearnerAssignment {
   id: string;

@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useMatch, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 type NavItem = {
@@ -47,6 +47,8 @@ export default function LearnerLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [expanded, setExpanded] = useState(true);
+  const watchMatch = useMatch('/learner/learn/:assignmentId');
+  const isWatchPage = Boolean(watchMatch);
 
   const handleLogout = () => {
     logout();
@@ -57,16 +59,18 @@ export default function LearnerLayout() {
     <div className="min-h-screen bg-white text-ink">
       <header className="sticky top-0 z-40 border-b border-stone-200 bg-white">
         <div className="flex h-14 items-center gap-2 px-2 sm:gap-3 sm:px-4">
-          <button
-            type="button"
-            className="hidden rounded-full p-2 text-stone-700 hover:bg-stone-100 md:inline-flex"
-            aria-label={expanded ? 'Collapse menu' : 'Expand menu'}
-            onClick={() => setExpanded((value) => !value)}
-          >
-            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path d="M4 7h16M4 12h16M4 17h16" />
-            </svg>
-          </button>
+          {!isWatchPage && (
+            <button
+              type="button"
+              className="hidden rounded-full p-2 text-stone-700 hover:bg-stone-100 md:inline-flex"
+              aria-label={expanded ? 'Collapse menu' : 'Expand menu'}
+              onClick={() => setExpanded((value) => !value)}
+            >
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M4 7h16M4 12h16M4 17h16" />
+              </svg>
+            </button>
+          )}
 
           <Link to="/learner" className="flex items-center gap-2 px-1">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-600 text-xs font-bold text-white">
@@ -100,75 +104,83 @@ export default function LearnerLayout() {
       </header>
 
       <div className="flex w-full">
-        {/* Desktop sidebar — YouTube mini (icon + label) or expanded */}
-        <aside
-          className={`sticky top-14 hidden h-[calc(100vh-3.5rem)] shrink-0 overflow-y-auto bg-white py-3 md:block ${
-            expanded ? 'w-[240px] px-3' : 'w-[72px] px-1'
-          }`}
+        {!isWatchPage && (
+          <aside
+            className={`sticky top-14 hidden h-[calc(100vh-3.5rem)] shrink-0 overflow-y-auto bg-white py-3 md:block ${
+              expanded ? 'w-[240px] px-3' : 'w-[72px] px-1'
+            }`}
+          >
+            <nav className={expanded ? 'space-y-0.5' : 'space-y-1'}>
+              {navItems.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.end}
+                  title={item.label}
+                  className={({ isActive }) =>
+                    expanded
+                      ? `flex items-center gap-6 rounded-xl px-3 py-2.5 text-sm transition ${
+                          isActive
+                            ? 'bg-stone-100 font-medium text-ink'
+                            : 'font-normal text-stone-700 hover:bg-stone-100'
+                        }`
+                      : `flex flex-col items-center gap-1 rounded-xl px-1 py-3 text-[10px] transition ${
+                          isActive
+                            ? 'bg-stone-100 font-medium text-ink'
+                            : 'font-normal text-stone-700 hover:bg-stone-100'
+                        }`
+                  }
+                >
+                  {({ isActive }) => (
+                    <>
+                      {item.icon(isActive)}
+                      <span className={expanded ? 'text-sm' : 'leading-none'}>
+                        {item.label}
+                      </span>
+                    </>
+                  )}
+                </NavLink>
+              ))}
+            </nav>
+          </aside>
+        )}
+
+        <main
+          className={
+            isWatchPage
+              ? 'min-w-0 flex-1'
+              : 'min-w-0 flex-1 px-3 pb-24 pt-4 sm:px-5 sm:pt-5 md:pb-8 lg:px-6'
+          }
         >
-          <nav className={expanded ? 'space-y-0.5' : 'space-y-1'}>
+          <Outlet />
+        </main>
+      </div>
+
+      {!isWatchPage && (
+        <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-stone-200 bg-white/95 backdrop-blur md:hidden">
+          <div className="mx-auto grid h-16 max-w-lg grid-cols-2">
             {navItems.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
                 end={item.end}
-                title={item.label}
                 className={({ isActive }) =>
-                  expanded
-                    ? `flex items-center gap-6 rounded-xl px-3 py-2.5 text-sm transition ${
-                        isActive
-                          ? 'bg-stone-100 font-medium text-ink'
-                          : 'font-normal text-stone-700 hover:bg-stone-100'
-                      }`
-                    : `flex flex-col items-center gap-1 rounded-xl px-1 py-3 text-[10px] transition ${
-                        isActive
-                          ? 'bg-stone-100 font-medium text-ink'
-                          : 'font-normal text-stone-700 hover:bg-stone-100'
-                      }`
+                  `flex flex-col items-center justify-center gap-0.5 text-[10px] ${
+                    isActive ? 'font-semibold text-ink' : 'font-medium text-stone-500'
+                  }`
                 }
               >
                 {({ isActive }) => (
                   <>
                     {item.icon(isActive)}
-                    <span className={expanded ? 'text-sm' : 'leading-none'}>
-                      {item.label}
-                    </span>
+                    <span>{item.label}</span>
                   </>
                 )}
               </NavLink>
             ))}
-          </nav>
-        </aside>
-
-        <main className="min-w-0 flex-1 px-3 pb-24 pt-4 sm:px-5 sm:pt-5 md:pb-8 lg:px-6">
-          <Outlet />
-        </main>
-      </div>
-
-      {/* Mobile bottom tabs — filled icon when active */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-stone-200 bg-white/95 backdrop-blur md:hidden">
-        <div className="mx-auto grid h-16 max-w-lg grid-cols-2">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={({ isActive }) =>
-                `flex flex-col items-center justify-center gap-0.5 text-[10px] ${
-                  isActive ? 'font-semibold text-ink' : 'font-medium text-stone-500'
-                }`
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  {item.icon(isActive)}
-                  <span>{item.label}</span>
-                </>
-              )}
-            </NavLink>
-          ))}
-        </div>
-      </nav>
+          </div>
+        </nav>
+      )}
     </div>
   );
 }
