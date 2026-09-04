@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { listVideos, setVideoPublished } from '../../api/videos';
 import type { Video } from '../../types';
 import { getApiErrorMessage } from '../../utils/apiError';
@@ -13,6 +13,7 @@ import ConfirmDialog from '../../components/ConfirmDialog';
 const PAGE_SIZE = 8;
 
 export default function AdminVideosPage() {
+  const navigate = useNavigate();
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -129,7 +130,19 @@ export default function AdminVideosPage() {
                 </thead>
                 <tbody className="divide-y divide-stone-100">
                   {pageItems.map((video) => (
-                    <tr key={video.id} className="hover:bg-stone-50/70">
+                    <tr
+                      key={video.id}
+                      role="link"
+                      tabIndex={0}
+                      onClick={() => navigate(`/admin/videos/${video.id}/edit`)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          navigate(`/admin/videos/${video.id}/edit`);
+                        }
+                      }}
+                      className="cursor-pointer hover:bg-stone-50/70"
+                    >
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
                           <ThumbnailImage src={video.thumbnailUrl} alt="" />
@@ -155,14 +168,12 @@ export default function AdminVideosPage() {
                           {video.isPublished ? 'Published' : 'Draft'}
                         </span>
                       </td>
-                      <td className="px-5 py-4">
+                      <td
+                        className="px-5 py-4"
+                        onClick={(event) => event.stopPropagation()}
+                        onKeyDown={(event) => event.stopPropagation()}
+                      >
                         <div className="flex flex-wrap items-center gap-2">
-                          <Link
-                            to={`/admin/videos/${video.id}/edit`}
-                            className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm font-medium text-ink hover:bg-stone-50"
-                          >
-                            Edit
-                          </Link>
                           <Link
                             to={`/admin/videos/${video.id}/edit?tab=questions`}
                             className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm font-medium text-ink hover:bg-stone-50"

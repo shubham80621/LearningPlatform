@@ -410,7 +410,7 @@ export default function VideoQuestionsPanel({
       {pendingDelete && (
         <ConfirmDialog
           title="Delete this question?"
-          message="Learners will no longer see it during playback. Past answers in reports will still be kept later."
+          message="Learners will no longer see it during playback. Past answers on learner progress will still be kept."
           confirmLabel="Delete"
           onConfirm={confirmDelete}
           onCancel={() => setPendingDelete(null)}

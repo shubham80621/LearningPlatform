@@ -46,28 +46,6 @@ const generalLinks: NavItem[] = [
       </svg>
     ),
   },
-  {
-    to: '/admin/assignments',
-    label: 'Assignments',
-    icon: (
-      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <path d="M8 4h8a2 2 0 0 1 2 2v14l-6-3-6 3V6a2 2 0 0 1 2-2z" />
-      </svg>
-    ),
-  },
-  {
-    to: '/admin/reports',
-    label: 'Reports',
-    icon: (
-      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <path d="M4 19V5" />
-        <path d="M4 19h16" />
-        <path d="M8 16V9" />
-        <path d="M13 16V6" />
-        <path d="M18 16v-4" />
-      </svg>
-    ),
-  },
 ];
 
 function SidebarNav({

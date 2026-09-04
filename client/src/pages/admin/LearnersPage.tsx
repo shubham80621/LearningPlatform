@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { listLearners } from '../../api/users';
 import type { User } from '../../types';
 import AdminPageHeader from '../../components/admin/AdminPageHeader';
@@ -9,6 +9,7 @@ import Pagination from '../../components/admin/Pagination';
 const PAGE_SIZE = 8;
 
 export default function AdminLearnersPage() {
+  const navigate = useNavigate();
   const [learners, setLearners] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -87,13 +88,26 @@ export default function AdminLearnersPage() {
                   <tr>
                     <th className="px-5 py-3 font-medium">Name</th>
                     <th className="px-5 py-3 font-medium">Email</th>
-                    <th className="px-5 py-3 font-medium">Role</th>
-                    <th className="px-5 py-3 font-medium">Status</th>
+                    <th className="px-5 py-3 font-medium">Assigned videos</th>
+                    <th className="px-5 py-3 font-medium">Questions</th>
+                    <th className="px-5 py-3 font-medium">Completed</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100">
                   {pageItems.map((learner) => (
-                    <tr key={learner.id} className="hover:bg-stone-50/70">
+                    <tr
+                      key={learner.id}
+                      role="link"
+                      tabIndex={0}
+                      onClick={() => navigate(`/admin/learners/${learner.id}`)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          navigate(`/admin/learners/${learner.id}`);
+                        }
+                      }}
+                      className="cursor-pointer hover:bg-stone-50/70"
+                    >
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
                           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-stone-100 text-xs font-semibold text-ink">
@@ -103,15 +117,14 @@ export default function AdminLearnersPage() {
                         </div>
                       </td>
                       <td className="px-5 py-4 text-stone-600">{learner.email}</td>
-                      <td className="px-5 py-4">
-                        <span className="rounded-full bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-700">
-                          Learner
-                        </span>
+                      <td className="px-5 py-4 font-medium text-ink">
+                        {learner.assignedVideos ?? 0}
                       </td>
-                      <td className="px-5 py-4">
-                        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                          Active
-                        </span>
+                      <td className="px-5 py-4 font-medium text-ink">
+                        {learner.questions ?? 0}
+                      </td>
+                      <td className="px-5 py-4 font-medium text-ink">
+                        {learner.completed ?? 0}
                       </td>
                     </tr>
                   ))}

@@ -12,8 +12,8 @@ import EditVideoPage from './pages/admin/EditVideoPage';
 import VideoQuestionsPage from './pages/admin/VideoQuestionsPage';
 import AdminLearnersPage from './pages/admin/LearnersPage';
 import CreateLearnerPage from './pages/admin/CreateLearnerPage';
+import LearnerDetailPage from './pages/admin/LearnerDetailPage';
 import AdminAssignmentsPage from './pages/admin/AssignmentsPage';
-import AdminReportsPage from './pages/admin/ReportsPage';
 import LearnerDashboardPage from './pages/learner/DashboardPage';
 
 function App() {
@@ -39,8 +39,8 @@ function App() {
             <Route path="videos/:id/questions" element={<VideoQuestionsPage />} />
             <Route path="learners" element={<AdminLearnersPage />} />
             <Route path="learners/new" element={<CreateLearnerPage />} />
+            <Route path="learners/:id" element={<LearnerDetailPage />} />
             <Route path="assignments" element={<AdminAssignmentsPage />} />
-            <Route path="reports" element={<AdminReportsPage />} />
           </Route>
 
           <Route

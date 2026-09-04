@@ -138,14 +138,14 @@ export default function AdminDashboardPage() {
               {
                 step: '03',
                 title: 'Assign lessons',
-                body: 'Send published videos to specific learners.',
-                to: '/admin/assignments',
+                body: 'Open a learner and assign published videos from their page.',
+                to: '/admin/learners',
               },
               {
                 step: '04',
                 title: 'Review progress',
-                body: 'Track completion and quiz answers in Reports.',
-                to: '/admin/reports',
+                body: 'Check completion and quiz answers on each learner’s Progress tab.',
+                to: '/admin/learners',
               },
             ].map((item) => (
               <Link

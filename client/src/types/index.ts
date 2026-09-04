@@ -5,6 +5,9 @@ export interface User {
   name: string;
   email: string;
   role: UserRole;
+  assignedVideos?: number;
+  questions?: number;
+  completed?: number;
 }
 
 export interface AuthResponse {
@@ -44,4 +47,49 @@ export interface Question {
   options: string[];
   correctOptionIndexes: number[];
   correctAnswer: string;
+}
+
+export type AssignmentStatus = 'assigned' | 'in_progress' | 'completed';
+
+export interface AssignmentVideoSummary {
+  id: string;
+  title: string;
+  thumbnailUrl: string;
+  duration: number;
+  isPublished: boolean;
+}
+
+export interface AssignmentQuestionProgress {
+  questionId: string;
+  timestamp: number;
+  type: QuestionType | string;
+  questionText: string;
+  options: string[];
+  correctAnswer: string;
+  answered: boolean;
+  isCorrect: boolean | null;
+  learnerAnswer: string | null;
+  answeredAt: string | null;
+}
+
+export interface AssignmentStats {
+  totalQuestions: number;
+  answered: number;
+  unanswered: number;
+  correct: number;
+  incorrect: number;
+}
+
+export interface Assignment {
+  id: string;
+  learnerId: string;
+  videoId: string;
+  status: AssignmentStatus;
+  lastWatchedTimestamp: number;
+  completionPercentage: number;
+  responseCount: number;
+  createdAt?: string;
+  video: AssignmentVideoSummary | null;
+  stats?: AssignmentStats;
+  questions?: AssignmentQuestionProgress[];
 }
