@@ -13,7 +13,7 @@ import { formatDuration } from '../../utils/media';
 import { validateEmail, validatePassword } from '../../utils/validation';
 import AdminPageHeader from '../../components/admin/AdminPageHeader';
 import AdminSectionToolbar from '../../components/admin/AdminSectionToolbar';
-import DonutChart from '../../components/admin/DonutChart';
+import DonutChart from '../../components/DonutChart';
 import Pagination from '../../components/admin/Pagination';
 import VideoPreviewDialog from '../../components/admin/VideoPreviewDialog';
 import ConfirmDialog from '../../components/ConfirmDialog';

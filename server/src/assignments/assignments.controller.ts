@@ -1,4 +1,13 @@
-import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -6,6 +15,10 @@ import { RolesGuard } from '../auth/roles.guard';
 import { UserRole } from '../users/schemas/user.schema';
 import { AssignmentsService } from './assignments.service';
 import { CreateAssignmentsDto } from './dto/create-assignments.dto';
+
+type AuthRequest = {
+  user: { userId: string; email: string; role: string; name: string };
+};
 
 @ApiTags('assignments')
 @ApiBearerAuth()
@@ -21,6 +34,13 @@ export class AssignmentsController {
   })
   assign(@Body() dto: CreateAssignmentsDto) {
     return this.assignmentsService.assignToLearner(dto);
+  }
+
+  @Get('me')
+  @Roles(UserRole.LEARNER)
+  @ApiOperation({ summary: 'List my assigned videos (learner home feed)' })
+  listMine(@Request() req: AuthRequest) {
+    return this.assignmentsService.findMine(req.user.userId);
   }
 
   @Get('learner/:learnerId')

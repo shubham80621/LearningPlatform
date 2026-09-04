@@ -87,6 +87,75 @@ export class AssignmentsService {
   }
 
   async findByLearner(learnerId: string) {
+    const { assignments, videoMap, questionsByVideo } =
+      await this.loadLearnerAssignments(learnerId);
+
+    return assignments.map((assignment) =>
+      this.toDetailedResponse(
+        assignment,
+        videoMap.get(assignment.videoId.toString()),
+        questionsByVideo.get(assignment.videoId.toString()) ?? [],
+      ),
+    );
+  }
+
+  /** Learner home feed: published assigned videos only, no answer keys. */
+  async findMine(learnerId: string) {
+    const { assignments, videoMap, questionsByVideo } =
+      await this.loadLearnerAssignments(learnerId);
+
+    return assignments
+      .map((assignment) => {
+        const video = videoMap.get(assignment.videoId.toString());
+        if (!video?.isPublished) return null;
+        const questions =
+          questionsByVideo.get(assignment.videoId.toString()) ?? [];
+        const questionIds = new Set(
+          questions.map((question) => question._id.toString()),
+        );
+        const matchedResponses = (assignment.responses ?? []).filter((response) =>
+          questionIds.has(response.questionId.toString()),
+        );
+        const answered = matchedResponses.length;
+        const correct = matchedResponses.filter(
+          (response) => response.isCorrect === true,
+        ).length;
+        const incorrect = matchedResponses.filter(
+          (response) => response.isCorrect === false,
+        ).length;
+        const totalQuestions = questions.length;
+        const unanswered = Math.max(totalQuestions - answered, 0);
+
+        return {
+          id: assignment._id.toString(),
+          videoId: assignment.videoId.toString(),
+          status: assignment.status,
+          lastWatchedTimestamp: assignment.lastWatchedTimestamp,
+          completionPercentage: assignment.completionPercentage,
+          questionCount: totalQuestions,
+          answeredCount: answered,
+          stats: {
+            totalQuestions,
+            answered,
+            unanswered,
+            correct,
+            incorrect,
+          },
+          createdAt: (assignment as AssignmentDocument & { createdAt?: Date })
+            .createdAt,
+          video: {
+            id: video._id.toString(),
+            title: video.title,
+            description: video.description,
+            thumbnailUrl: toPublicMediaUrl(video.thumbnailUrl),
+            duration: video.duration,
+          },
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null);
+  }
+
+  private async loadLearnerAssignments(learnerId: string) {
     const learner = await this.userModel
       .findOne({ _id: learnerId, role: UserRole.LEARNER })
       .exec();
@@ -121,13 +190,7 @@ export class AssignmentsService {
       questionsByVideo.set(key, list);
     }
 
-    return assignments.map((assignment) =>
-      this.toDetailedResponse(
-        assignment,
-        videoMap.get(assignment.videoId.toString()),
-        questionsByVideo.get(assignment.videoId.toString()) ?? [],
-      ),
-    );
+    return { assignments, videoMap, questionsByVideo };
   }
 
   async remove(id: string) {

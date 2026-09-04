@@ -1,5 +1,10 @@
 import api from './client';
-import type { Assignment } from '../types';
+import type { Assignment, LearnerAssignment } from '../types';
+
+export async function listMyAssignments() {
+  const { data } = await api.get<LearnerAssignment[]>('/assignments/me');
+  return data;
+}
 
 export async function listLearnerAssignments(learnerId: string) {
   const { data } = await api.get<Assignment[]>(`/assignments/learner/${learnerId}`);

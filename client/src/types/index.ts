@@ -54,9 +54,30 @@ export type AssignmentStatus = 'assigned' | 'in_progress' | 'completed';
 export interface AssignmentVideoSummary {
   id: string;
   title: string;
+  description?: string;
   thumbnailUrl: string;
   duration: number;
-  isPublished: boolean;
+  isPublished?: boolean;
+}
+
+/** Learner home-feed item (no answer keys). */
+export interface LearnerAssignment {
+  id: string;
+  videoId: string;
+  status: AssignmentStatus;
+  lastWatchedTimestamp: number;
+  completionPercentage: number;
+  questionCount: number;
+  answeredCount: number;
+  stats?: AssignmentStats;
+  createdAt?: string;
+  video: {
+    id: string;
+    title: string;
+    description: string;
+    thumbnailUrl: string;
+    duration: number;
+  };
 }
 
 export interface AssignmentQuestionProgress {
