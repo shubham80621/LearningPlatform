@@ -174,11 +174,11 @@ export default function EditVideoPage() {
             role="tab"
             aria-selected={tab === 'info'}
             onClick={() => setSearchParams({})}
-            className={`rounded-t-lg px-5 py-2.5 text-sm font-medium ${
+            className={
               tab === 'info'
-                ? 'relative z-10 border border-b-0 border-stone-200 bg-white text-ink'
-                : 'mb-px border border-transparent bg-stone-200/70 text-stone-600 hover:bg-stone-200 hover:text-ink'
-            }`}
+                ? 'relative z-10 -mb-px rounded-t-lg border border-b-0 border-stone-200 bg-white px-4 py-2.5 text-sm font-medium text-ink'
+                : 'relative -mb-px rounded-t-lg border border-b-0 border-transparent bg-transparent px-4 py-2.5 text-sm font-medium text-stone-500 hover:text-ink'
+            }
           >
             Basic info
           </button>
@@ -187,17 +187,22 @@ export default function EditVideoPage() {
             role="tab"
             aria-selected={tab === 'questions'}
             onClick={() => setSearchParams({ tab: 'questions' })}
-            className={`rounded-t-lg px-5 py-2.5 text-sm font-medium ${
+            className={
               tab === 'questions'
-                ? 'relative z-10 border border-b-0 border-stone-200 bg-white text-ink'
-                : 'mb-px border border-transparent bg-stone-200/70 text-stone-600 hover:bg-stone-200 hover:text-ink'
-            }`}
+                ? 'relative z-10 -mb-px rounded-t-lg border border-b-0 border-stone-200 bg-white px-4 py-2.5 text-sm font-medium text-ink'
+                : 'relative -mb-px rounded-t-lg border border-b-0 border-transparent bg-transparent px-4 py-2.5 text-sm font-medium text-stone-500 hover:text-ink'
+            }
           >
             Questions
           </button>
         </div>
 
-        <div className="rounded-b-2xl rounded-tr-2xl border border-stone-200 bg-white p-5 shadow-sm md:p-6">
+        <div
+          className={`border border-stone-200 bg-white p-5 shadow-sm md:p-6 ${
+            tab === 'info' ? 'rounded-b-xl rounded-tr-xl' : 'rounded-xl'
+          }`}
+          role="tabpanel"
+        >
           {loading ? (
             <p className="py-6 text-sm text-stone-500">Loading video…</p>
           ) : tab === 'questions' && id ? (
