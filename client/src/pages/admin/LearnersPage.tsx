@@ -90,7 +90,7 @@ export default function AdminLearnersPage() {
                     <th className="px-5 py-3 font-medium">Email</th>
                     <th className="px-5 py-3 font-medium">Assigned videos</th>
                     <th className="px-5 py-3 font-medium">Questions</th>
-                    <th className="px-5 py-3 font-medium">Completed</th>
+                    <th className="px-5 py-3 font-medium">Completed videos</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100">
@@ -123,8 +123,14 @@ export default function AdminLearnersPage() {
                       <td className="px-5 py-4 font-medium text-ink">
                         {learner.questions ?? 0}
                       </td>
-                      <td className="px-5 py-4 font-medium text-ink">
-                        {learner.completed ?? 0}
+                      <td className="px-5 py-4">
+                        <span className="font-medium text-ink">
+                          {learner.completed ?? 0}
+                        </span>
+                        <span className="text-stone-400">
+                          {' '}
+                          / {learner.assignedVideos ?? 0}
+                        </span>
                       </td>
                     </tr>
                   ))}

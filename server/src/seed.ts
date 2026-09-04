@@ -313,6 +313,7 @@ async function seed() {
         status: AssignmentStatus.ASSIGNED,
         lastWatchedTimestamp: 0,
         completionPercentage: 0,
+        completedAt: null,
         responses: [],
       },
       { upsert: true, new: true, setDefaultsOnInsert: true },

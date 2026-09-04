@@ -14,6 +14,7 @@ import { validateEmail, validatePassword } from '../../utils/validation';
 import AdminPageHeader from '../../components/admin/AdminPageHeader';
 import AdminSectionToolbar from '../../components/admin/AdminSectionToolbar';
 import DonutChart from '../../components/DonutChart';
+import AssignmentStatusBadge from '../../components/AssignmentStatusBadge';
 import Pagination from '../../components/admin/Pagination';
 import VideoPreviewDialog from '../../components/admin/VideoPreviewDialog';
 import ConfirmDialog from '../../components/ConfirmDialog';
@@ -21,12 +22,6 @@ import TextField from '../../components/form/TextField';
 import PasswordField from '../../components/form/PasswordField';
 import { fieldClassName } from '../../components/form/fieldStyles';
 import ThumbnailImage from '../../components/ThumbnailImage';
-
-const statusLabel: Record<Assignment['status'], string> = {
-  assigned: 'Assigned',
-  in_progress: 'In progress',
-  completed: 'Completed',
-};
 
 const ASSIGN_PAGE_SIZE = 6;
 const PROGRESS_PAGE_SIZE = 5;
@@ -654,15 +649,21 @@ export default function LearnerDetailPage() {
                               />
                             </div>
                             <div className="min-w-0 flex-1">
-                              <p className="font-medium text-ink">
-                                {assignment.video?.title ?? 'Video unavailable'}
-                              </p>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="font-medium text-ink">
+                                  {assignment.video?.title ?? 'Video unavailable'}
+                                </p>
+                                <AssignmentStatusBadge status={assignment.status} />
+                              </div>
                               <p className="mt-1 text-sm text-stone-500">
-                                {statusLabel[assignment.status]} ·{' '}
                                 {assignment.completionPercentage}% watched ·{' '}
                                 {stats.correct}/{stats.totalQuestions} correct
                                 {assignment.lastWatchedTimestamp > 0
                                   ? ` · last at ${formatDuration(assignment.lastWatchedTimestamp)}`
+                                  : ''}
+                                {assignment.status === 'completed' &&
+                                assignment.completedAt
+                                  ? ` · completed ${new Date(assignment.completedAt).toLocaleString()}`
                                   : ''}
                               </p>
                             </div>

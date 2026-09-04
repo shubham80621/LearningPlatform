@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { listMyAssignments } from '../../api/assignments';
+import AssignmentStatusBadge from '../../components/AssignmentStatusBadge';
 import ThumbnailImage from '../../components/ThumbnailImage';
 import type { LearnerAssignment } from '../../types';
 import { getApiErrorMessage } from '../../utils/apiError';
@@ -112,9 +113,12 @@ function LessonGroup({
                 </span>
               </div>
               <div className="min-w-0 flex-1 py-0.5">
-                <h3 className="line-clamp-2 text-sm font-semibold text-ink sm:text-base">
-                  {item.video.title}
-                </h3>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="line-clamp-2 text-sm font-semibold text-ink sm:text-base">
+                    {item.video.title}
+                  </h3>
+                  <AssignmentStatusBadge status={item.status} />
+                </div>
                 <p className="mt-1 text-xs text-stone-500 sm:text-sm">
                   {item.completionPercentage}% watched
                   {item.questionCount > 0 &&

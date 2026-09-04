@@ -75,6 +75,7 @@ export class AssignmentsService {
         status: AssignmentStatus.ASSIGNED,
         lastWatchedTimestamp: 0,
         completionPercentage: 0,
+        completedAt: null,
         responses: [],
       });
       created.push(assignment);
@@ -135,6 +136,7 @@ export class AssignmentsService {
           status: assignment.status,
           lastWatchedTimestamp: assignment.lastWatchedTimestamp,
           completionPercentage: assignment.completionPercentage,
+          completedAt: assignment.completedAt ?? null,
           questionCount: totalQuestions,
           answeredCount: answered,
           stats: {
@@ -220,14 +222,18 @@ export class AssignmentsService {
       Math.max(0, dto.lastWatchedTimestamp),
       video.duration,
     );
-    const pct = Math.min(
-      100,
-      Math.round((clampedTime / Math.max(video.duration, 1)) * 100),
-    );
+    // Near the end counts as fully watched (player currentTime can be < duration).
+    const reachedEnd = clampedTime >= Math.max(video.duration - 1, 0);
+    const pct = reachedEnd
+      ? 100
+      : Math.min(
+          100,
+          Math.round((clampedTime / Math.max(video.duration, 1)) * 100),
+        );
 
     assignment.lastWatchedTimestamp = Math.max(
       assignment.lastWatchedTimestamp ?? 0,
-      clampedTime,
+      reachedEnd ? video.duration : clampedTime,
     );
     assignment.completionPercentage = Math.max(
       assignment.completionPercentage ?? 0,
@@ -246,6 +252,7 @@ export class AssignmentsService {
       status: assignment.status,
       lastWatchedTimestamp: assignment.lastWatchedTimestamp,
       completionPercentage: assignment.completionPercentage,
+      completedAt: assignment.completedAt ?? null,
     };
   }
 
@@ -335,11 +342,19 @@ export class AssignmentsService {
         response.questionId.toString(),
       ),
     );
-    const allAnswered = questions.every((question) =>
-      answeredIds.has(question._id.toString()),
-    );
-    if (assignment.completionPercentage >= 95 && allAnswered) {
+    const allAnswered =
+      questions.length === 0 ||
+      questions.every((question) => answeredIds.has(question._id.toString()));
+
+    // Lesson complete = mostly watched + every question answered (or no questions).
+    if (
+      assignment.completionPercentage >= 95 &&
+      allAnswered &&
+      assignment.status !== AssignmentStatus.COMPLETED
+    ) {
       assignment.status = AssignmentStatus.COMPLETED;
+      assignment.completedAt = new Date();
+      assignment.completionPercentage = 100;
     }
   }
 
@@ -432,6 +447,7 @@ export class AssignmentsService {
       status: assignment.status,
       lastWatchedTimestamp: assignment.lastWatchedTimestamp,
       completionPercentage: assignment.completionPercentage,
+      completedAt: assignment.completedAt ?? null,
       stats: {
         totalQuestions,
         answered,
@@ -527,6 +543,7 @@ export class AssignmentsService {
       status: assignment.status,
       lastWatchedTimestamp: assignment.lastWatchedTimestamp,
       completionPercentage: assignment.completionPercentage,
+      completedAt: assignment.completedAt ?? null,
       responseCount: assignment.responses?.length ?? 0,
       createdAt: (assignment as AssignmentDocument & { createdAt?: Date })
         .createdAt,

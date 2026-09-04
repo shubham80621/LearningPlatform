@@ -24,6 +24,7 @@ export async function saveMyProgress(
     status: string;
     lastWatchedTimestamp: number;
     completionPercentage: number;
+    completedAt?: string | null;
   }>(`/assignments/me/${id}/progress`, payload);
   return data;
 }

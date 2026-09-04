@@ -81,6 +81,7 @@ export interface LearnerWatchSession {
   status: AssignmentStatus;
   lastWatchedTimestamp: number;
   completionPercentage: number;
+  completedAt?: string | null;
   stats: AssignmentStats;
   questions: LearnerWatchQuestion[];
   video: {
@@ -100,6 +101,7 @@ export interface LearnerAssignment {
   status: AssignmentStatus;
   lastWatchedTimestamp: number;
   completionPercentage: number;
+  completedAt?: string | null;
   questionCount: number;
   answeredCount: number;
   stats?: AssignmentStats;
@@ -141,6 +143,7 @@ export interface Assignment {
   status: AssignmentStatus;
   lastWatchedTimestamp: number;
   completionPercentage: number;
+  completedAt?: string | null;
   responseCount: number;
   createdAt?: string;
   video: AssignmentVideoSummary | null;

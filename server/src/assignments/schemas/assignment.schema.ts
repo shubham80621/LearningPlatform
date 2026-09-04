@@ -51,6 +51,10 @@ export class Assignment {
   @Prop({ default: 0, min: 0, max: 100 })
   completionPercentage: number;
 
+  /** Set when status becomes completed (watch threshold + all questions answered). */
+  @Prop({ type: Date, default: null })
+  completedAt: Date | null;
+
   @Prop({ type: [AssignmentResponseSchema], default: [] })
   responses: AssignmentResponse[];
 }

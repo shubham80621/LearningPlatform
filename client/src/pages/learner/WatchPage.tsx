@@ -7,6 +7,7 @@ import {
   submitMyAnswer,
 } from '../../api/assignments';
 import ThumbnailImage from '../../components/ThumbnailImage';
+import AssignmentStatusBadge from '../../components/AssignmentStatusBadge';
 import type {
   LearnerAssignment,
   LearnerWatchQuestion,
@@ -168,6 +169,9 @@ export default function LearnerWatchPage() {
                 status: updated.status as LearnerWatchSession['status'],
                 lastWatchedTimestamp: updated.lastWatchedTimestamp,
                 completionPercentage: updated.completionPercentage,
+                completedAt:
+                  (updated as { completedAt?: string | null }).completedAt ??
+                  current.completedAt,
               }
             : current,
         );
@@ -179,6 +183,8 @@ export default function LearnerWatchPage() {
                   status: updated.status as LearnerAssignment['status'],
                   lastWatchedTimestamp: updated.lastWatchedTimestamp,
                   completionPercentage: updated.completionPercentage,
+                  completedAt:
+                    updated.completedAt ?? item.completedAt ?? null,
                 }
               : item,
           ),
@@ -331,8 +337,9 @@ export default function LearnerWatchPage() {
   };
 
   const onEnded = () => {
+    const duration = session?.video.duration || 0;
     const video = videoRef.current;
-    const seconds = video?.currentTime || session?.video.duration || 0;
+    const seconds = Math.max(video?.currentTime || 0, duration);
     void flushProgress({ force: true, seconds });
   };
 
@@ -391,6 +398,7 @@ export default function LearnerWatchPage() {
                 ...item,
                 status: next.status,
                 completionPercentage: next.completionPercentage,
+                completedAt: next.completedAt ?? item.completedAt ?? null,
                 answeredCount: next.stats.answered,
                 questionCount: next.stats.totalQuestions,
                 stats: next.stats,
@@ -480,12 +488,6 @@ export default function LearnerWatchPage() {
   const src = mediaUrl(session.video.videoUrl);
   const answeredCount = session.stats.answered;
   const totalQuestions = session.stats.totalQuestions;
-  const statusLabel =
-    session.status === 'completed'
-      ? 'Completed'
-      : session.status === 'in_progress'
-        ? 'In progress'
-        : 'Not started';
 
   const filteredPlaylist = playlist.filter((item) => {
     if (playlistFilter === 'all') return true;
@@ -692,9 +694,7 @@ export default function LearnerWatchPage() {
                 <span className="inline-flex items-center rounded-full bg-stone-100 px-3 py-1.5 text-sm font-medium text-ink">
                   {session.completionPercentage}% watched
                 </span>
-                <span className="inline-flex items-center rounded-full bg-stone-100 px-3 py-1.5 text-sm font-medium text-ink">
-                  {statusLabel}
-                </span>
+                <AssignmentStatusBadge status={session.status} className="px-3 py-1.5 text-sm" />
                 {totalQuestions > 0 && (
                   <span className="inline-flex items-center rounded-full bg-stone-100 px-3 py-1.5 text-sm font-medium text-ink">
                     {answeredCount}/{totalQuestions} answered
@@ -702,6 +702,19 @@ export default function LearnerWatchPage() {
                 )}
               </div>
             </div>
+
+            {session.status === 'completed' && (
+              <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-900">
+                <p className="font-semibold">Lesson completed</p>
+                <p className="mt-0.5 text-emerald-800/90">
+                  You finished watching and answered every question
+                  {session.completedAt
+                    ? ` · ${new Date(session.completedAt).toLocaleString()}`
+                    : ''}
+                  .
+                </p>
+              </div>
+            )}
 
             {session.video.description ? (
               <div className="mt-3 rounded-xl bg-stone-100 px-3 py-3 text-sm leading-relaxed text-stone-700">
@@ -797,16 +810,13 @@ export default function LearnerWatchPage() {
                         <p className="mt-1 text-xs text-stone-500">
                           {item.completionPercentage}% watched
                         </p>
-                        <p className="text-xs text-stone-500">
-                          {item.status === 'completed'
-                            ? 'Completed'
-                            : item.status === 'in_progress' ||
-                                item.completionPercentage > 0
-                              ? 'In progress'
-                              : 'Not started'}
+                        <div className="mt-1.5">
+                          <AssignmentStatusBadge status={item.status} />
+                        </div>
+                        <p className="mt-1 text-xs text-stone-500">
                           {item.questionCount > 0
-                            ? ` · ${item.answeredCount}/${item.questionCount} Q`
-                            : ''}
+                            ? `${item.answeredCount}/${item.questionCount} questions`
+                            : 'No questions'}
                         </p>
                         {isCurrent && (
                           <p className="mt-1 text-[11px] font-semibold text-teal-700">

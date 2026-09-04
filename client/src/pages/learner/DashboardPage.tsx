@@ -3,22 +3,11 @@ import { Link } from 'react-router-dom';
 import { listMyAssignments } from '../../api/assignments';
 import DonutChart from '../../components/DonutChart';
 import ThumbnailImage from '../../components/ThumbnailImage';
+import AssignmentStatusBadge from '../../components/AssignmentStatusBadge';
 import { useAuth } from '../../contexts/AuthContext';
 import type { LearnerAssignment } from '../../types';
 import { getApiErrorMessage } from '../../utils/apiError';
 import { formatDuration } from '../../utils/media';
-
-function statusLabel(status: LearnerAssignment['status']) {
-  if (status === 'completed') return 'Completed';
-  if (status === 'in_progress') return 'In progress';
-  return 'Not started';
-}
-
-function statusTone(status: LearnerAssignment['status']) {
-  if (status === 'completed') return 'text-emerald-700';
-  if (status === 'in_progress') return 'text-teal-700';
-  return 'text-stone-500';
-}
 
 export default function LearnerDashboardPage() {
   const { user } = useAuth();
@@ -220,6 +209,11 @@ export default function LearnerDashboardPage() {
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                   {[
                     {
+                      label: 'Completed',
+                      value: progressTotals.videosCompleted,
+                      tone: 'bg-emerald-50 text-emerald-800',
+                    },
+                    {
                       label: 'Assigned',
                       value: progressTotals.videos,
                       tone: 'bg-stone-50 text-ink',
@@ -243,11 +237,6 @@ export default function LearnerDashboardPage() {
                       label: 'Incorrect',
                       value: progressTotals.incorrect,
                       tone: 'bg-red-50 text-red-800',
-                    },
-                    {
-                      label: 'Unanswered',
-                      value: progressTotals.unanswered,
-                      tone: 'bg-amber-50 text-amber-900',
                     },
                   ].map((card) => (
                     <div key={card.label} className={`rounded-xl px-3 py-3 sm:px-4 ${card.tone}`}>
@@ -331,6 +320,9 @@ function VideoCard({ item }: { item: LearnerAssignment }) {
         <span className="absolute bottom-2 right-2 rounded bg-black/80 px-1.5 py-0.5 text-[11px] font-semibold text-white">
           {formatDuration(video.duration ?? 0)}
         </span>
+        <div className="absolute left-2 top-2">
+          <AssignmentStatusBadge status={item.status} />
+        </div>
         {progress > 0 && (
           <div className="absolute inset-x-0 bottom-0 h-1 bg-stone-300/80">
             <div className="h-full bg-teal-600" style={{ width: `${progress}%` }} />
@@ -346,13 +338,13 @@ function VideoCard({ item }: { item: LearnerAssignment }) {
           <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-ink group-hover:text-teal-800">
             {video.title}
           </h3>
-          <p className={`mt-1 text-xs font-medium ${statusTone(item.status)}`}>
-            {statusLabel(item.status)}
+          <p className="mt-1 text-xs text-stone-500">
+            {progress}% watched
             {stats && stats.totalQuestions > 0 && (
-              <span className="font-normal text-stone-400">
+              <>
                 {' '}
                 · {stats.answered}/{stats.totalQuestions} answered
-              </span>
+              </>
             )}
           </p>
         </div>
