@@ -10,45 +10,104 @@ Mini learning platform where admins create video-based content with timestamp-ba
 
 ## Prerequisites
 
-- Docker Desktop (recommended — runs the full stack)
-- Or Node.js 20+ and npm for hybrid local development
-
-## Quick start (Docker — full stack)
-
-From the repo root:
+**Option A — Docker (recommended for reviewers)**  
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and **running**  
+- Confirm in a terminal:
 
 ```bash
-# Build and start MongoDB + API + web app
-docker compose up --build
+docker --version
+docker compose version
+```
 
-# In another terminal: load demo users, videos, questions, assignments
+If either command fails with `command not found`, install/start Docker Desktop first, then open a **new** terminal.
+
+**Option B — Hybrid (hot reload while developing)**  
+- Node.js 20+ and npm  
+- Docker Desktop only for MongoDB (or any local MongoDB on port `27017`)
+
+---
+
+## Run with Docker (full stack)
+
+This starts MongoDB + API + web UI. You do **not** need to create `.env` files — Compose sets them.
+
+### 1. Clone the repo
+
+```bash
+git clone https://github.com/shubham80621/LearningPlatform.git
+cd LearningPlatform
+```
+
+### 2. Build and start all services
+
+```bash
+docker compose up --build
+```
+
+Leave this terminal open. The first build can take several minutes. Wait until the API and web containers are up (server healthcheck passes).
+
+Services started:
+
+| Container | Role |
+|-----------|------|
+| `learning-platform-db` | MongoDB |
+| `learning-platform-server` | NestJS API on port 3000 |
+| `learning-platform-client` | React app (nginx) on port 8080 |
+
+### 3. Seed demo data (second terminal)
+
+Open another terminal in the same repo folder:
+
+```bash
+cd LearningPlatform
 docker compose --profile seed run --rm seed
 ```
 
-| Service | URL |
-|---------|-----|
-| App | http://localhost:8080 |
+You should see output ending with `Seed complete.`
+
+This loads demo users, 30 videos, questions, and assignments (demo media comes from `server/seed-assets/`).
+
+### 4. Open the app
+
+| What | URL |
+|------|-----|
+| **Web app** | http://localhost:8080 |
 | API | http://localhost:3000/api |
 | Swagger | http://localhost:3000/api/docs |
 
-The web container proxies `/api` and `/uploads` to the API, so the browser stays same-origin.
+The web container proxies `/api` and `/uploads` to the API so the browser stays same-origin.
 
-**Demo accounts** (after seed)
+### 5. Sample login credentials (after seed)
 
 | Role | Email | Password |
 |------|--------|----------|
 | Admin | `admin@example.com` | `admin123` |
-| Learner 1 | `learner1@example.com` | `learner123` |
-| Learners 2–14 | `learner2@example.com` … | `learner123` |
+| Learner 1 (richest demo data) | `learner1@example.com` | `learner123` |
+| Learners 2–14 | `learner2@example.com` … `learner14@example.com` | `learner123` |
 
-Stop everything: `docker compose down`  
-Wipe DB + uploads: `docker compose down -v`
+### 6. Suggested smoke test
+
+1. Log in as **admin** → Videos / Learners → open Learner 1 → Progress tab.  
+2. Log out → log in as **learner1** → Home → open a lesson → watch, answer a timestamp quiz, refresh and confirm resume.
+
+### Stop / reset
+
+```bash
+# Stop containers (keeps DB + uploaded media volumes)
+docker compose down
+
+# Full clean slate (deletes DB + uploads), then start + seed again
+docker compose down -v
+docker compose up --build
+# then in another terminal:
+docker compose --profile seed run --rm seed
+```
 
 ---
 
 ## Local Development (Hybrid)
 
-Use this when you want hot reload. Docker still runs MongoDB only.
+Use this when you want hot reload. Docker runs **MongoDB only**; API and client run on the host with npm.
 
 ### 1. Start MongoDB
 
@@ -85,6 +144,8 @@ npm run seed
 | Questions | 102 | *Getting Started with LearnPulse* carries 15 to stress the questions panel |
 | Learners | 14 | Learners 9–14 have nothing assigned, so empty states stay reachable |
 | Assignments | 27 | Mixed completed / in progress / not started |
+
+Use the same login credentials as in the Docker section above.
 
 **Demo walkthrough**
 1. Admin: log in → Videos / Learners → page through the lists, then open Learner 1's Progress tab.
@@ -126,7 +187,9 @@ Media lives in `server/uploads/` and is served at `http://localhost:3000/uploads
 
 ## Environment Variables
 
-### Server (`server/.env`)
+### Server (`server/.env`) — hybrid only
+
+Docker Compose injects these for the full-stack path; you only need a local `.env` for hybrid.
 
 ```
 MONGODB_URI=mongodb://localhost:27017/learning-platform
@@ -151,11 +214,13 @@ Images max **5 MB**. Videos max **200 MB**. Oversized uploads return **413**.
 
 For production-scale video, the usual pattern is **presigned S3 uploads** (browser → S3, API only stores the URL). Local `server/uploads/` is the MVP stand-in.
 
-### Client (`client/.env`)
+### Client (`client/.env`) — hybrid only
 
 ```
 VITE_API_URL=http://localhost:3000/api
 ```
+
+In Docker, the client is built with `VITE_API_URL=/api` and nginx proxies `/api` and `/uploads` to the server.
 
 ## Testing
 
@@ -180,14 +245,19 @@ cd server
 npm run test:cov
 ```
 
+## Assumptions and known limitations
+
+- Local disk uploads (`server/uploads/`) instead of S3; fine for this assessment, not production scale.
+- Editing a published lesson updates live content for learners; past answers are kept (no full content versioning). See `IMPROVEMENTS.md`.
+
 ## Project Structure
 
 ```
 LearningPlatform/
-├── client/          # React frontend (+ Dockerfile / nginx)
-├── server/          # NestJS backend (+ Dockerfile, seed-assets/)
-│   └── uploads/     # Local image + video files (swap for S3 later)
-├── IMPROVEMENTS.md  # Deferred / future work (e.g. content versioning)
-└── docker-compose.yml  # MongoDB + API + web (+ optional seed profile)
+├── client/               # React frontend (+ Dockerfile / nginx)
+├── server/               # NestJS backend (+ Dockerfile)
+│   ├── seed-assets/      # Demo video + thumbnails used by seed
+│   └── uploads/          # Runtime media (gitignored; volume in Docker)
+├── IMPROVEMENTS.md       # Deferred / future work
+└── docker-compose.yml    # MongoDB + API + web (+ seed profile)
 ```
-
