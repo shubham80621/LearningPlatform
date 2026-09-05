@@ -21,7 +21,9 @@ services:
     environment:
       MONGODB_URI: mongodb://mongodb:27017/learning-platform
       JWT_SECRET: ${JWT_SECRET:-docker-dev-jwt-secret-change-me}
-      JWT_EXPIRATION: 7d
+      JWT_ACCESS_EXPIRATION: 15m
+      JWT_REFRESH_EXPIRATION: 7d
+      COOKIE_SECURE: 'false'
       PORT: 3000
       # Browser reaches API/media via published port 3000 (and via client nginx proxy)
       PUBLIC_APP_URL: http://localhost:3000

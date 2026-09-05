@@ -1,4 +1,10 @@
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import {
+  createApi,
+  fetchBaseQuery,
+  type BaseQueryFn,
+  type FetchArgs,
+  type FetchBaseQueryError,
+} from '@reduxjs/toolkit/query/react';
 import type {
   LearnerAssignment,
   LearnerProgressSummary,
@@ -10,6 +16,12 @@ import type {
 import type { ListMyAssignmentsParams } from '../api/assignments';
 import type { ListVideosParams } from '../api/videos';
 import type { ListLearnersParams } from '../api/users';
+import { clearSession } from '../auth/authStorage';
+import {
+  isAuthPublicUrl,
+  redirectToLogin,
+  refreshAccessToken,
+} from '../auth/tokenRefresh';
 import {
   infiniteForceRefetch,
   infiniteMerge,
@@ -27,6 +39,42 @@ export type ListVideoQuestionsParams = {
   limit?: number;
 };
 
+const rawBaseQuery = fetchBaseQuery({
+  baseUrl,
+  credentials: 'include',
+});
+
+function requestUrl(args: string | FetchArgs): string {
+  return typeof args === 'string' ? args : args.url;
+}
+
+/**
+ * On 401, share one refresh (see tokenRefresh) then retry once.
+ * Concurrent RTK failures all await the same promise — no refresh stampede.
+ * Access/refresh tokens are HttpOnly cookies (sent via credentials: 'include').
+ */
+const baseQueryWithReauth: BaseQueryFn<
+  string | FetchArgs,
+  unknown,
+  FetchBaseQueryError
+> = async (args, api, extraOptions) => {
+  let result = await rawBaseQuery(args, api, extraOptions);
+
+  if (result.error?.status !== 401 || isAuthPublicUrl(requestUrl(args))) {
+    return result;
+  }
+
+  try {
+    await refreshAccessToken();
+    result = await rawBaseQuery(args, api, extraOptions);
+  } catch {
+    clearSession();
+    redirectToLogin();
+  }
+
+  return result;
+};
+
 /**
  * Server-state cache (RTK Query).
  * Learner assignment lists merge pages (infinite scroll).
@@ -34,14 +82,7 @@ export type ListVideoQuestionsParams = {
  */
 export const api = createApi({
   reducerPath: 'api',
-  baseQuery: fetchBaseQuery({
-    baseUrl,
-    prepareHeaders: (headers) => {
-      const token = localStorage.getItem('token');
-      if (token) headers.set('Authorization', `Bearer ${token}`);
-      return headers;
-    },
-  }),
+  baseQuery: baseQueryWithReauth,
   tagTypes: [
     'VideoList',
     'LearnerList',

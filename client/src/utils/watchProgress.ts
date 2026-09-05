@@ -59,14 +59,11 @@ export function clearBufferedProgress(assignmentId: string) {
   }
 }
 
-/** Fire-and-forget flush when the tab may be closing (headers supported). */
+/** Fire-and-forget flush when the tab may be closing (cookies via credentials). */
 export function beaconSaveProgress(
   assignmentId: string,
   lastWatchedTimestamp: number,
 ) {
-  const token = localStorage.getItem('token');
-  if (!token) return;
-
   const base = (import.meta.env.VITE_API_URL || 'http://localhost:3000/api').replace(
     /\/$/,
     '',
@@ -79,9 +76,9 @@ export function beaconSaveProgress(
   try {
     void fetch(url, {
       method: 'PATCH',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
       },
       body,
       keepalive: true,

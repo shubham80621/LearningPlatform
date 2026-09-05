@@ -164,7 +164,7 @@ App: `http://localhost:5173`
 
 ### API notes (optional)
 
-Swagger: `http://localhost:3000/api/docs` — log in via `POST /api/auth/login`, then **Authorize** with the JWT.
+Swagger: `http://localhost:3000/api/docs` — log in via `POST /api/auth/login`, then **Authorize** with the **access** JWT.
 
 Media lives in `server/uploads/` and is served at `http://localhost:3000/uploads/...`.
 
@@ -194,7 +194,9 @@ Docker Compose injects these for the full-stack path; you only need a local `.en
 ```
 MONGODB_URI=mongodb://localhost:27017/learning-platform
 JWT_SECRET=your-super-secret-jwt-key-change-in-production
-JWT_EXPIRATION=7d
+JWT_ACCESS_EXPIRATION=15m
+JWT_REFRESH_EXPIRATION=7d
+COOKIE_SECURE=false
 PORT=3000
 PUBLIC_APP_URL=http://localhost:3000
 CORS_ORIGIN=http://localhost:5173,http://localhost:8080
@@ -210,7 +212,9 @@ Images max **5 MB**. Videos max **200 MB**. Oversized uploads return **413**.
 
 **CORS.** `CORS_ORIGIN` is a comma-separated list of browser origins (hybrid Vite on `5173`, Docker web UI on `8080`).
 
-**Rate limits.** Every API route is throttled (default **120 req / 60s**). Login and register are tighter (**5 / 60s**). Uploads and video create/update use **30 / 60s**. Exceeding a limit returns **429**. Tracked by JWT prefix when present, otherwise by client IP.
+**Auth tokens.** Login sets **HttpOnly** cookies `lp_access` + `lp_refresh` (and also returns tokens in the JSON body for Swagger/API clients). Access JWT TTL: `JWT_ACCESS_EXPIRATION` (default `15m`). Refresh TTL: `JWT_REFRESH_EXPIRATION` (default `7d`); refresh tokens are hashed in Mongo and **rotated** on every `POST /api/auth/refresh`. Logout revokes the refresh token and clears cookies. Set `COOKIE_SECURE=true` behind HTTPS.
+
+**Rate limits.** Every API route is throttled (default **120 req / 60s**). Login, register, refresh, and logout are tighter (**5 / 60s**). Uploads and video create/update use **30 / 60s**. Exceeding a limit returns **429**. Tracked by JWT prefix when present, otherwise by client IP.
 
 For production-scale video, the usual pattern is **presigned S3 uploads** (browser → S3, API only stores the URL). Local `server/uploads/` is the MVP stand-in.
 
@@ -264,7 +268,7 @@ npm run test:cov
 - **Video delete does not cascade assignments.** Deleting a video cleans media/questions; assignment rows tied to it are not fully productized as a soft-archive flow.
 - **No learner self-service account deletion / password reset / email verification.** Admin can create and update learners; password change is optional on edit.
 - **Short-answer grading** is exact match (case-insensitive), not fuzzy or AI-graded.
-- **Auth is JWT in `localStorage`** with a fixed expiry (default 7 days)—no refresh tokens or server-side session revoke list.
+- **Auth uses HttpOnly cookies** for access + refresh tokens (`lp_access`, `lp_refresh`). The SPA only caches the non-secret user profile in `localStorage`. Concurrent 401s share a **single-flight** cookie refresh. Swagger can still Authorize with the access JWT from the login response body.
 - **Single-tenant admin.** No orgs, multi-instructor RBAC, or audit log beyond what Mongo holds for progress/answers.
 
 ## Project Structure

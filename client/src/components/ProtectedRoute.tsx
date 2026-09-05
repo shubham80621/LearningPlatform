@@ -11,7 +11,15 @@ export default function ProtectedRoute({
   children,
   allowedRoles,
 }: ProtectedRouteProps) {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, authReady } = useAuth();
+
+  if (!authReady) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-white text-sm text-stone-500">
+        Checking session…
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;

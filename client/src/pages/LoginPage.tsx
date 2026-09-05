@@ -47,7 +47,7 @@ export default function LoginPage() {
 
     try {
       const result = await loginRequest(email.trim(), password);
-      login(result.accessToken, result.user);
+      login(result.user);
       navigate(result.user.role === 'admin' ? '/admin' : '/learner', { replace: true });
     } catch {
       setFormError('Could not log in. Check your email and password, then try again.');

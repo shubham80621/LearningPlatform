@@ -2,11 +2,19 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from 'react';
 import type { User } from '../types';
+import { logoutRequest, meRequest } from '../api/auth';
+import {
+  clearSession,
+  getStoredUser,
+  setStoredUser,
+} from '../auth/authStorage';
+import { refreshAccessToken } from '../auth/tokenRefresh';
 import { store } from '../store';
 import { api } from '../store/api';
 import { setLearnerLearnStatus } from '../store/uiSlice';
@@ -14,40 +22,73 @@ import { setLearnerLearnStatus } from '../store/uiSlice';
 interface AuthContextValue {
   user: User | null;
   isAuthenticated: boolean;
-  login: (token: string, user: User) => void;
+  authReady: boolean;
+  login: (user: User) => void;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => {
-    const stored = localStorage.getItem('user');
-    return stored ? (JSON.parse(stored) as User) : null;
-  });
+  const [user, setUser] = useState<User | null>(() => getStoredUser());
+  const [authReady, setAuthReady] = useState(false);
 
-  const login = useCallback((token: string, nextUser: User) => {
-    localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(nextUser));
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const me = await meRequest();
+        if (cancelled) return;
+        setStoredUser(me);
+        setUser(me);
+      } catch {
+        try {
+          await refreshAccessToken();
+          const me = await meRequest();
+          if (cancelled) return;
+          setStoredUser(me);
+          setUser(me);
+        } catch {
+          if (cancelled) return;
+          clearSession();
+          setUser(null);
+        }
+      } finally {
+        if (!cancelled) setAuthReady(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const login = useCallback((nextUser: User) => {
+    setStoredUser(nextUser);
     setUser(nextUser);
+    setAuthReady(true);
   }, []);
 
   const logout = useCallback(() => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    clearSession();
     setUser(null);
     store.dispatch(api.util.resetApiState());
     store.dispatch(setLearnerLearnStatus('all'));
+    void logoutRequest().catch(() => {
+      /* best-effort revoke + clear cookies */
+    });
   }, []);
 
   const value = useMemo(
     () => ({
       user,
-      isAuthenticated: Boolean(user && localStorage.getItem('token')),
+      isAuthenticated: Boolean(user),
+      authReady,
       login,
       logout,
     }),
-    [user, login, logout],
+    [user, authReady, login, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
