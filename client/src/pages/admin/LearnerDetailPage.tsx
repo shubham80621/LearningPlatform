@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   assignVideosToLearner,
@@ -12,20 +12,41 @@ import { formatDuration } from '../../utils/media';
 import { validateEmail, validatePassword } from '../../utils/validation';
 import AdminPageHeader from '../../components/admin/AdminPageHeader';
 import AdminSectionToolbar from '../../components/admin/AdminSectionToolbar';
+import AdminDataTable, {
+  type AdminTableColumn,
+} from '../../components/admin/AdminDataTable';
 import DonutChart from '../../components/DonutChart';
 import AssignmentStatusBadge from '../../components/AssignmentStatusBadge';
 import VideoPreviewDialog from '../../components/admin/VideoPreviewDialog';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import FormBusyOverlay from '../../components/FormBusyOverlay';
 import TextField from '../../components/form/TextField';
 import PasswordField from '../../components/form/PasswordField';
 import { fieldClassName } from '../../components/form/fieldStyles';
 import ThumbnailImage from '../../components/ThumbnailImage';
 import Pagination from '../../components/admin/Pagination';
+import { useAdminPagedQuery } from '../../hooks/useAdminPagedQuery';
 import { useListVideosQuery } from '../../store/api';
 import { useAppDispatch } from '../../store/hooks';
 import { invalidateLearnerLists } from '../../store/invalidate';
+import Shimmer from '../../components/Shimmer';
 
 const ASSIGN_PAGE_SIZE = 6;
+const PROGRESS_PAGE_SIZE = 5;
+
+const ASSIGN_COLUMNS: AdminTableColumn[] = [
+  { label: 'Lesson', skeleton: 'media' },
+  { label: 'Duration', skeleton: 'text' },
+  { label: 'Preview', skeleton: 'actions' },
+];
+
+const PROGRESS_COLUMNS: AdminTableColumn[] = [
+  { label: 'Lesson', skeleton: 'media' },
+  { label: 'Status', skeleton: 'badge' },
+  { label: 'Watched', skeleton: 'stat' },
+  { label: 'Correct', skeleton: 'stat' },
+  { label: 'Actions', skeleton: 'actions' },
+];
 
 type LearnerTab = 'info' | 'assign' | 'progress';
 
@@ -60,7 +81,6 @@ export default function LearnerDetailPage() {
   const [selectedVideoIds, setSelectedVideoIds] = useState<string[]>([]);
   const [videoSearch, setVideoSearch] = useState('');
   const [videoQuery, setVideoQuery] = useState('');
-  const [assignPage, setAssignPage] = useState(1);
   const [previewVideo, setPreviewVideo] = useState<Video | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [loading, setLoading] = useState(!isCreate);
@@ -68,6 +88,9 @@ export default function LearnerDetailPage() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
+  const [progressPage, setProgressPage] = useState(1);
+  const [progressRefreshing, setProgressRefreshing] = useState(false);
+  const forceProgressNetworkRef = useRef(false);
 
   const load = async () => {
     if (!id) return;
@@ -117,24 +140,55 @@ export default function LearnerDetailPage() {
     return () => clearTimeout(timer);
   }, [videoSearch]);
 
-  useEffect(() => {
-    setAssignPage(1);
-  }, [videoQuery]);
-
-  const assignQuery = useListVideosQuery(
-    {
-      page: assignPage,
+  const {
+    page: assignPage,
+    setPage: setAssignPage,
+    onPageChange: onAssignPageChange,
+    items: assignVideos,
+    total: assignTotal,
+    showTableLoader: assignLoading,
+    refetch: refetchAssignVideos,
+  } = useAdminPagedQuery(
+    useListVideosQuery,
+    (page) => ({
+      page,
       limit: ASSIGN_PAGE_SIZE,
-      status: 'published',
+      status: 'published' as const,
       unassignedFor: id,
       search: videoQuery || undefined,
-    },
+    }),
     { skip: isCreate || !id || tab !== 'assign' },
   );
 
-  const assignVideos = assignQuery.data?.items ?? [];
-  const assignTotal = assignQuery.data?.total ?? 0;
-  const assignLoading = assignQuery.isLoading && !assignQuery.data;
+  useEffect(() => {
+    setAssignPage(1);
+  }, [videoQuery, setAssignPage]);
+
+  useEffect(() => {
+    if (!forceProgressNetworkRef.current || !id) return;
+    forceProgressNetworkRef.current = false;
+    let active = true;
+    setProgressRefreshing(true);
+    listLearnerAssignments(id)
+      .then((nextAssignments) => {
+        if (active) setAssignments(nextAssignments);
+      })
+      .catch(() => {
+        /* keep existing list if refresh fails */
+      })
+      .finally(() => {
+        if (active) setProgressRefreshing(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [progressPage, id]);
+
+  const onProgressPageChange = (nextPage: number) => {
+    if (nextPage === progressPage) return;
+    forceProgressNetworkRef.current = true;
+    setProgressPage(nextPage);
+  };
 
   const progressTotals = useMemo(() => {
     return assignments.reduce(
@@ -172,6 +226,16 @@ export default function LearnerDetailPage() {
       },
     );
   }, [assignments]);
+
+  const progressTableLoading = loading && assignments.length === 0;
+  const pagedAssignments = useMemo(
+    () =>
+      assignments.slice(
+        (progressPage - 1) * PROGRESS_PAGE_SIZE,
+        progressPage * PROGRESS_PAGE_SIZE,
+      ),
+    [assignments, progressPage],
+  );
 
   const avgWatchPercent =
     progressTotals.videos === 0
@@ -266,7 +330,7 @@ export default function LearnerDetailPage() {
       setSelectedVideoIds([]);
       setMessage(`Assigned ${count} video${count === 1 ? '' : 's'}.`);
       invalidateLearnerLists(dispatch);
-      void assignQuery.refetch();
+      void refetchAssignVideos();
     } catch (err) {
       setError(getApiErrorMessage(err, 'Could not assign videos.'));
     } finally {
@@ -284,7 +348,7 @@ export default function LearnerDetailPage() {
       setPendingRemoveId(null);
       setMessage('Assignment removed.');
       invalidateLearnerLists(dispatch);
-      if (tab === 'assign') void assignQuery.refetch();
+      if (tab === 'assign') void refetchAssignVideos();
     } catch (err) {
       setError(getApiErrorMessage(err, 'Could not remove assignment.'));
     } finally {
@@ -365,13 +429,14 @@ export default function LearnerDetailPage() {
         <div
           className={
             isCreate
-              ? 'rounded-2xl border border-stone-200 bg-white p-5 shadow-sm md:p-6'
-              : `border border-stone-200 bg-white p-5 shadow-sm md:p-6 ${
+              ? 'relative rounded-2xl border border-stone-200 bg-white p-5 shadow-sm md:p-6'
+              : `relative border border-stone-200 bg-white p-5 shadow-sm md:p-6 ${
                   tab === 'info' ? 'rounded-b-xl rounded-tr-xl' : 'rounded-xl'
                 }`
           }
           role="tabpanel"
         >
+          <FormBusyOverlay busy={loading} label="Loading learner…" />
           {error && (
             <p className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {error}
@@ -383,15 +448,14 @@ export default function LearnerDetailPage() {
             </p>
           )}
 
-          {loading ? (
-            <p className="py-6 text-sm text-stone-500">Loading learner…</p>
-          ) : tab === 'info' ? (
+          {tab === 'info' ? (
             <form onSubmit={handleSaveInfo} noValidate className="max-w-xl space-y-4">
               <h2 className="text-lg font-semibold text-ink">Account details</h2>
               <TextField
                 label="Name"
                 name="name"
                 value={name}
+                disabled={loading || submitting}
                 onChange={(event) => {
                   setName(event.target.value);
                   if (fieldErrors.name) setFieldErrors((prev) => ({ ...prev, name: undefined }));
@@ -403,6 +467,7 @@ export default function LearnerDetailPage() {
                 name="email"
                 type="email"
                 value={email}
+                disabled={loading || submitting}
                 onChange={(event) => {
                   setEmail(event.target.value);
                   if (fieldErrors.email) setFieldErrors((prev) => ({ ...prev, email: undefined }));
@@ -414,6 +479,7 @@ export default function LearnerDetailPage() {
                   label={isCreate ? 'Temporary password' : 'New password'}
                   name="password"
                   value={password}
+                  disabled={loading || submitting}
                   onChange={(event) => {
                     setPassword(event.target.value);
                     if (fieldErrors.password) {
@@ -435,16 +501,18 @@ export default function LearnerDetailPage() {
               </div>
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={loading || submitting}
                 className="rounded-xl bg-ink px-4 py-2.5 text-sm font-medium text-white hover:bg-stone-800 disabled:opacity-60"
               >
-                {submitting
-                  ? isCreate
-                    ? 'Creating…'
-                    : 'Saving…'
-                  : isCreate
-                    ? 'Create learner'
-                    : 'Save changes'}
+                {loading
+                  ? 'Loading…'
+                  : submitting
+                    ? isCreate
+                      ? 'Creating…'
+                      : 'Saving…'
+                    : isCreate
+                      ? 'Create learner'
+                      : 'Save changes'}
               </button>
             </form>
           ) : tab === 'assign' ? (
@@ -471,71 +539,64 @@ export default function LearnerDetailPage() {
                 </div>
               </div>
 
-              {assignLoading && assignVideos.length === 0 ? (
-                <p className="rounded-xl bg-stone-50 px-4 py-3 text-sm text-stone-600">
-                  Loading videos…
-                </p>
-              ) : assignTotal === 0 && videoQuery ? (
-                <p className="rounded-xl bg-stone-50 px-4 py-3 text-sm text-stone-600">
-                  No videos match “{videoQuery}”.
-                </p>
-              ) : assignTotal === 0 ? (
-                <p className="rounded-xl bg-stone-50 px-4 py-3 text-sm text-stone-600">
-                  No published videos left to assign. Publish a video first, or this learner already
-                  has all of them.
-                </p>
-              ) : (
-                <div className="overflow-hidden rounded-xl border border-stone-200">
-                  <ul className="divide-y divide-stone-100">
-                    {assignVideos.map((video) => {
-                      const checked = selectedVideoIds.includes(video.id);
-                      return (
-                        <li
-                          key={video.id}
-                          className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center"
-                        >
-                          <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3">
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => toggleVideo(video.id)}
-                              className="h-4 w-4 shrink-0 accent-teal-700"
-                            />
-                            <div className="h-14 w-24 shrink-0 overflow-hidden rounded-lg bg-stone-100">
-                              <ThumbnailImage
-                                src={video.thumbnailUrl}
-                                alt=""
-                                className="h-full w-full object-cover"
-                              />
-                            </div>
-                            <span className="min-w-0">
-                              <span className="block truncate text-sm font-medium text-ink">
-                                {video.title}
-                              </span>
-                              <span className="text-xs text-stone-500">
-                                {formatDuration(video.duration)}
-                              </span>
-                            </span>
-                          </label>
-                          <button
-                            type="button"
-                            onClick={() => setPreviewVideo(video)}
-                            className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm font-medium text-ink hover:bg-stone-50 sm:shrink-0"
-                          >
-                            Play
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
+              <AdminDataTable
+                columns={ASSIGN_COLUMNS}
+                loading={assignLoading}
+                loadingLabel="Loading videos"
+                skeletonRows={ASSIGN_PAGE_SIZE}
+                framed={false}
+                empty={
+                  !assignLoading && assignTotal === 0 ? (
+                    <div className="px-5 py-10 text-center text-sm text-stone-600">
+                      {videoQuery
+                        ? `No videos match “${videoQuery}”.`
+                        : 'No published videos left to assign. Publish a video first, or this learner already has all of them.'}
+                    </div>
+                  ) : null
+                }
+                footer={
                   <Pagination
                     page={assignPage}
                     pageSize={ASSIGN_PAGE_SIZE}
                     total={assignTotal}
-                    onPageChange={setAssignPage}
+                    onPageChange={onAssignPageChange}
                   />
-                </div>
-              )}
+                }
+              >
+                {assignVideos.map((video) => {
+                  const checked = selectedVideoIds.includes(video.id);
+                  return (
+                    <tr key={video.id}>
+                      <td className="px-5 py-4">
+                        <label className="flex min-w-0 cursor-pointer items-center gap-3">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleVideo(video.id)}
+                            className="h-4 w-4 shrink-0 accent-teal-700"
+                          />
+                          <ThumbnailImage src={video.thumbnailUrl} alt="" />
+                          <span className="min-w-0 truncate text-sm font-medium text-ink">
+                            {video.title}
+                          </span>
+                        </label>
+                      </td>
+                      <td className="px-5 py-4 text-stone-600">
+                        {formatDuration(video.duration)}
+                      </td>
+                      <td className="px-5 py-4">
+                        <button
+                          type="button"
+                          onClick={() => setPreviewVideo(video)}
+                          className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm font-medium text-ink hover:bg-stone-50"
+                        >
+                          Play
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </AdminDataTable>
 
               <button
                 type="submit"
@@ -561,15 +622,41 @@ export default function LearnerDetailPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    void load();
+                    if (!id) return;
+                    setProgressRefreshing(true);
+                    void listLearnerAssignments(id)
+                      .then(setAssignments)
+                      .catch(() => {
+                        /* keep existing */
+                      })
+                      .finally(() => setProgressRefreshing(false));
                   }}
-                  className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-stone-100"
+                  disabled={progressRefreshing}
+                  className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-stone-100 disabled:opacity-60"
                 >
-                  Refresh
+                  {progressRefreshing ? 'Refreshing…' : 'Refresh'}
                 </button>
               </div>
 
-              {assignments.length === 0 ? (
+              {progressTableLoading && assignments.length === 0 ? (
+                <AdminDataTable
+                  columns={PROGRESS_COLUMNS}
+                  loading
+                  loadingLabel="Loading progress"
+                  skeletonRows={PROGRESS_PAGE_SIZE}
+                  framed={false}
+                  footer={
+                    <Pagination
+                      page={progressPage}
+                      pageSize={PROGRESS_PAGE_SIZE}
+                      total={0}
+                      onPageChange={onProgressPageChange}
+                    />
+                  }
+                >
+                  {null}
+                </AdminDataTable>
+              ) : assignments.length === 0 ? (
                 <p className="py-6 text-sm text-stone-500">
                   No assignments yet. Use the Assign videos tab to add lessons.
                 </p>
@@ -675,8 +762,29 @@ export default function LearnerDetailPage() {
                   </div>
 
                   <div className="overflow-hidden rounded-xl border border-stone-200">
-                    <ul className="divide-y divide-stone-200">
-                      {assignments.map((assignment) => {
+                    {progressTableLoading && assignments.length === 0 ? (
+                      <div
+                        className="space-y-0 divide-y divide-stone-100"
+                        aria-busy="true"
+                        aria-label="Loading progress"
+                      >
+                        {Array.from({ length: PROGRESS_PAGE_SIZE }).map((_, index) => (
+                          <div key={index} className="flex items-center gap-3 px-4 py-4">
+                            <Shimmer className="h-14 w-24 shrink-0 rounded-lg" />
+                            <div className="min-w-0 flex-1 space-y-2">
+                              <Shimmer className="h-4 w-1/2 max-w-56" />
+                              <Shimmer className="h-3 w-1/3 max-w-40" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <ul
+                        className={`divide-y divide-stone-200 ${
+                          progressRefreshing ? 'opacity-70' : ''
+                        }`}
+                      >
+                        {pagedAssignments.map((assignment) => {
                       const stats = assignment.stats ?? {
                         totalQuestions: 0,
                         answered: 0,
@@ -789,8 +897,15 @@ export default function LearnerDetailPage() {
                           )}
                         </li>
                       );
-                    })}
-                    </ul>
+                        })}
+                      </ul>
+                    )}
+                    <Pagination
+                      page={progressPage}
+                      pageSize={PROGRESS_PAGE_SIZE}
+                      total={assignments.length}
+                      onPageChange={onProgressPageChange}
+                    />
                   </div>
                 </>
               )}

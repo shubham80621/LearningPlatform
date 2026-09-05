@@ -12,15 +12,23 @@ type MediaPickerProps = {
   fileName?: string;
   hint?: string;
   error?: string;
+  disabled?: boolean;
   onFile: (file: File) => void;
 };
 
-function EditIconButton({ onClick }: { onClick: () => void }) {
+function EditIconButton({
+  onClick,
+  disabled,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="absolute right-1.5 top-1.5 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white text-ink shadow-sm ring-1 ring-stone-200 hover:bg-stone-50"
+      disabled={disabled}
+      className="absolute right-1.5 top-1.5 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white text-ink shadow-sm ring-1 ring-stone-200 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
       aria-label="Edit"
     >
       <svg
@@ -47,25 +55,33 @@ export default function MediaPicker({
   fileName,
   hint,
   error,
+  disabled = false,
   onFile,
 }: MediaPickerProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const errorId = `${name}-error`;
   const hasPreview = Boolean(previewUrl);
-  const openPicker = () => inputRef.current?.click();
+  const openPicker = () => {
+    if (!disabled) inputRef.current?.click();
+  };
   const isImage = kind === 'image';
 
   return (
-    <div>
+    <div className={disabled ? 'opacity-70' : undefined}>
       <p className={labelClassName}>{label}</p>
       <div
         className={`relative overflow-hidden rounded-xl bg-stone-100 ring-1 ${
           error ? 'ring-red-400' : 'ring-stone-200'
         } ${isImage ? 'h-24 w-40' : 'h-36 w-64 max-w-full'}`}
       >
-        <EditIconButton onClick={openPicker} />
+        <EditIconButton onClick={openPicker} disabled={disabled} />
         {isImage ? (
-          <button type="button" onClick={openPicker} className="block h-full w-full">
+          <button
+            type="button"
+            onClick={openPicker}
+            disabled={disabled}
+            className="block h-full w-full disabled:cursor-not-allowed"
+          >
             <ThumbnailImage
               src={previewUrl}
               alt=""
@@ -76,14 +92,15 @@ export default function MediaPicker({
           <video
             src={mediaUrl(previewUrl!)}
             className="h-full w-full bg-stone-900 object-contain"
-            controls
+            controls={!disabled}
             preload="metadata"
           />
         ) : (
           <button
             type="button"
             onClick={openPicker}
-            className="flex h-full w-full flex-col items-center justify-center px-3 text-center text-xs text-stone-500"
+            disabled={disabled}
+            className="flex h-full w-full flex-col items-center justify-center px-3 text-center text-xs text-stone-500 disabled:cursor-not-allowed"
           >
             No video yet
           </button>
@@ -96,6 +113,7 @@ export default function MediaPicker({
         name={name}
         type="file"
         accept={accept}
+        disabled={disabled}
         className="hidden"
         aria-invalid={Boolean(error)}
         aria-describedby={error ? errorId : undefined}

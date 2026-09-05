@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
@@ -13,11 +14,29 @@ async function bootstrap() {
   app.use(json({ limit: '1mb' }));
   app.use(urlencoded({ extended: true, limit: '1mb' }));
 
+  const configuredOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
   app.enableCors({
-    origin: (process.env.CORS_ORIGIN || 'http://localhost:5173')
-      .split(',')
-      .map((origin) => origin.trim())
-      .filter(Boolean),
+    origin: (origin, callback) => {
+      // Non-browser clients (curl, same-origin) send no Origin.
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+      if (configuredOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+      // Vite may hop ports (5173 → 5174…) during local hybrid runs.
+      if (/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(null, false);
+    },
     credentials: true,
   });
   app.useGlobalPipes(

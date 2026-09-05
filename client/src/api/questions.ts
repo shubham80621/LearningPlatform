@@ -1,8 +1,14 @@
 import api from './client';
-import type { Question, QuestionType } from '../types';
+import type { Paginated, Question, QuestionType } from '../types';
 
-export async function listQuestions(videoId: string) {
-  const { data } = await api.get<Question[]>(`/videos/${videoId}/questions`);
+export async function listQuestions(
+  videoId: string,
+  params?: { page?: number; limit?: number },
+) {
+  const { data } = await api.get<Paginated<Question>>(
+    `/videos/${videoId}/questions`,
+    { params },
+  );
   return data;
 }
 

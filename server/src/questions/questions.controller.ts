@@ -6,12 +6,14 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { UserRole } from '../users/schemas/user.schema';
 import { CreateQuestionDto } from './dto/create-question.dto';
 import { UpdateQuestionDto } from './dto/update-question.dto';
@@ -35,9 +37,12 @@ export class QuestionsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'List questions for a video' })
-  findAll(@Param('videoId') videoId: string) {
-    return this.questionsService.findByVideo(videoId);
+  @ApiOperation({ summary: 'List questions for a video (paginated)' })
+  findAll(
+    @Param('videoId') videoId: string,
+    @Query() query: PaginationQueryDto,
+  ) {
+    return this.questionsService.findByVideo(videoId, query);
   }
 
   @Patch(':id')

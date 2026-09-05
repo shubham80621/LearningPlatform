@@ -12,6 +12,7 @@ import { pickThumbnail, pickVideo } from '../../utils/videoMediaPick';
 import AdminPageHeader from '../../components/admin/AdminPageHeader';
 import AdminSectionToolbar from '../../components/admin/AdminSectionToolbar';
 import VideoQuestionsPanel from '../../components/admin/VideoQuestionsPanel';
+import FormBusyOverlay from '../../components/FormBusyOverlay';
 import TextField from '../../components/form/TextField';
 import MediaPicker from '../../components/form/MediaPicker';
 import {
@@ -236,15 +237,16 @@ export default function VideoFormPage() {
           </div>
 
           <div
-            className={`border border-stone-200 bg-white p-5 shadow-sm md:p-6 ${
+            className={`relative border border-stone-200 bg-white p-5 shadow-sm md:p-6 ${
               tab === 'info' ? 'rounded-b-xl rounded-tr-xl' : 'rounded-xl'
             }`}
             role="tabpanel"
           >
-            {loading ? (
-              <p className="py-6 text-sm text-stone-500">Loading video…</p>
-            ) : tab === 'questions' && id ? (
-              <VideoQuestionsPanel videoId={id} duration={duration} embedded />
+            <FormBusyOverlay busy={loading} label="Loading video…" />
+            {tab === 'questions' && id ? (
+              <fieldset disabled={loading} className="min-w-0 border-0 p-0">
+                <VideoQuestionsPanel videoId={id} duration={duration} embedded />
+              </fieldset>
             ) : (
               <VideoDetailsForm
                 title={title}
@@ -257,6 +259,7 @@ export default function VideoFormPage() {
                 fieldErrors={fieldErrors}
                 error={error}
                 submitting={submitting}
+                loading={loading}
                 isEdit
                 onTitleChange={setTitle}
                 onDescriptionChange={setDescription}
@@ -320,6 +323,7 @@ type FormFieldsProps = {
   fieldErrors: FieldErrors;
   error: string;
   submitting: boolean;
+  loading?: boolean;
   isEdit: boolean;
   onTitleChange: (value: string) => void;
   onDescriptionChange: (value: string) => void;
@@ -355,6 +359,7 @@ function VideoDetailsFields({
   fieldErrors,
   error,
   submitting,
+  loading = false,
   isEdit,
   onTitleChange,
   onDescriptionChange,
@@ -363,6 +368,8 @@ function VideoDetailsFields({
   onThumbnail,
   onVideo,
 }: FormFieldsProps) {
+  const disabled = submitting || loading;
+
   return (
     <>
       {!isEdit && <h2 className="text-lg font-semibold text-ink">Lesson details</h2>}
@@ -370,6 +377,7 @@ function VideoDetailsFields({
         label="Title"
         name="title"
         value={title}
+        disabled={disabled}
         onChange={(event) => {
           onTitleChange(event.target.value);
           if (fieldErrors.title) onClearTitleError();
@@ -386,6 +394,7 @@ function VideoDetailsFields({
           name="description"
           rows={4}
           value={description}
+          disabled={disabled}
           onChange={(event) => {
             onDescriptionChange(event.target.value);
             if (fieldErrors.description) onClearDescriptionError();
@@ -407,6 +416,7 @@ function VideoDetailsFields({
         accept="image/jpeg,image/png,image/webp,image/gif"
         previewUrl={thumbnailSrc}
         fileName={thumbnailName}
+        disabled={disabled}
         hint={
           isEdit
             ? 'Click Edit to replace. JPEG, PNG, WebP, or GIF. Max 5 MB.'
@@ -421,6 +431,7 @@ function VideoDetailsFields({
         name="video"
         accept="video/mp4,video/webm,video/quicktime"
         previewUrl={videoSrc}
+        disabled={disabled}
         fileName={
           videoFile
             ? `${videoFile.name}${duration ? ` · ${formatDuration(duration)}` : ''}`
@@ -442,16 +453,18 @@ function VideoDetailsFields({
       <div className="flex flex-wrap gap-2 pt-2">
         <button
           type="submit"
-          disabled={submitting}
+          disabled={disabled}
           className="rounded-xl bg-ink px-4 py-2.5 text-sm font-medium text-white hover:bg-stone-800 disabled:opacity-60"
         >
-          {submitting
-            ? isEdit
-              ? 'Saving…'
-              : 'Uploading…'
-            : isEdit
-              ? 'Save changes'
-              : 'Create video'}
+          {loading
+            ? 'Loading…'
+            : submitting
+              ? isEdit
+                ? 'Saving…'
+                : 'Uploading…'
+              : isEdit
+                ? 'Save changes'
+                : 'Create video'}
         </button>
         <Link
           to="/admin/videos"

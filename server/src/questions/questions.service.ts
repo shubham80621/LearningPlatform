@@ -5,6 +5,10 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import {
+  paginated,
+  resolvePagination,
+} from '../common/pagination';
 import { VideosService } from '../videos/videos.service';
 import { CreateQuestionDto } from './dto/create-question.dto';
 import { UpdateQuestionDto } from './dto/update-question.dto';
@@ -41,13 +45,30 @@ export class QuestionsService {
     return this.toResponse(question);
   }
 
-  async findByVideo(videoId: string) {
+  async findByVideo(
+    videoId: string,
+    query: { page?: number; limit?: number } = {},
+  ) {
     await this.videosService.findOne(videoId);
-    const questions = await this.questionModel
-      .find({ videoId: this.toVideoObjectId(videoId) })
-      .sort({ timestamp: 1, createdAt: 1 })
-      .exec();
-    return questions.map((question) => this.toResponse(question));
+    const { page, limit, skip } = resolvePagination(query);
+    const filter = { videoId: this.toVideoObjectId(videoId) };
+
+    const [total, questions] = await Promise.all([
+      this.questionModel.countDocuments(filter).exec(),
+      this.questionModel
+        .find(filter)
+        .sort({ timestamp: 1, createdAt: 1 })
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+    ]);
+
+    return paginated(
+      questions.map((question) => this.toResponse(question)),
+      total,
+      page,
+      limit,
+    );
   }
 
   async update(videoId: string, id: string, dto: UpdateQuestionDto) {

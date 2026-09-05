@@ -3,6 +3,7 @@ import type {
   LearnerAssignment,
   LearnerProgressSummary,
   Paginated,
+  Question,
   User,
   Video,
 } from '../types';
@@ -20,6 +21,12 @@ const baseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:3000/api').re
   '',
 );
 
+export type ListVideoQuestionsParams = {
+  videoId: string;
+  page?: number;
+  limit?: number;
+};
+
 /**
  * Server-state cache (RTK Query).
  * Learner assignment lists merge pages (infinite scroll).
@@ -35,7 +42,13 @@ export const api = createApi({
       return headers;
     },
   }),
-  tagTypes: ['VideoList', 'LearnerList', 'MyAssignmentList', 'MyProgressSummary'],
+  tagTypes: [
+    'VideoList',
+    'LearnerList',
+    'MyAssignmentList',
+    'MyProgressSummary',
+    'VideoQuestions',
+  ],
   keepUnusedDataFor: 300,
   refetchOnMountOrArgChange: false,
   refetchOnFocus: false,
@@ -72,6 +85,16 @@ export const api = createApi({
         };
       },
       providesTags: [{ type: 'LearnerList', id: 'LIST' }],
+    }),
+
+    listVideoQuestions: builder.query<Paginated<Question>, ListVideoQuestionsParams>({
+      query: ({ videoId, page, limit }) => ({
+        url: `/videos/${videoId}/questions`,
+        params: { page, limit },
+      }),
+      providesTags: (_result, _error, arg) => [
+        { type: 'VideoQuestions', id: arg.videoId },
+      ],
     }),
 
     listMyAssignments: builder.query<
@@ -135,6 +158,7 @@ export const api = createApi({
 export const {
   useListVideosQuery,
   useListLearnersQuery,
+  useListVideoQuestionsQuery,
   useListMyAssignmentsQuery,
   useMyProgressSummaryQuery,
   useSetVideoPublishedMutation,
