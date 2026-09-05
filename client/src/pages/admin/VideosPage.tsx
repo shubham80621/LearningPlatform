@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { listVideos, setVideoPublished } from '../../api/videos';
 import type { Video } from '../../types';
 import { getApiErrorMessage } from '../../utils/apiError';
 import { formatDuration } from '../../utils/media';
@@ -9,71 +8,59 @@ import AdminSectionToolbar from '../../components/admin/AdminSectionToolbar';
 import Pagination from '../../components/admin/Pagination';
 import ThumbnailImage from '../../components/ThumbnailImage';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { setVideosPage } from '../../store/uiSlice';
+import {
+  useListVideosQuery,
+  useSetVideoPublishedMutation,
+} from '../../store/api';
 
 const PAGE_SIZE = 8;
 
 export default function AdminVideosPage() {
   const navigate = useNavigate();
-  const [videos, setVideos] = useState<Video[]>([]);
-  const [loading, setLoading] = useState(true);
+  const dispatch = useAppDispatch();
+  const page = useAppSelector((state) => state.ui.videosPage);
   const [error, setError] = useState('');
-  const [page, setPage] = useState(1);
-  const [updatingId, setUpdatingId] = useState('');
   const [pendingUnpublish, setPendingUnpublish] = useState<Video | null>(null);
 
-  useEffect(() => {
-    let active = true;
+  const { data, isLoading, isFetching, isError, error: queryError } =
+    useListVideosQuery({ page, limit: PAGE_SIZE });
+  const [setPublished, { isLoading: isUpdating }] = useSetVideoPublishedMutation();
 
-    listVideos()
-      .then((data) => {
-        if (!active) return;
-        setVideos(data);
-        setPage(1);
-      })
-      .catch((err) => {
-        if (active) setError(getApiErrorMessage(err, 'Could not load videos.'));
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const start = (page - 1) * PAGE_SIZE;
-  const pageItems = videos.slice(start, start + PAGE_SIZE);
-
-  const applyUpdated = (updated: Video) => {
-    setVideos((current) => current.map((item) => (item.id === updated.id ? updated : item)));
-  };
+  const videos = data?.items ?? [];
+  const total = data?.total ?? 0;
+  // Only block the table on the first load — cached revisits render immediately.
+  const showInitialLoader = isLoading && !data;
 
   const publishVideo = async (video: Video) => {
     setError('');
-    setUpdatingId(video.id);
     try {
-      applyUpdated(await setVideoPublished(video.id, true));
+      await setPublished({ id: video.id, isPublished: true }).unwrap();
     } catch (err) {
       setError(getApiErrorMessage(err, 'Could not publish this video.'));
-    } finally {
-      setUpdatingId('');
     }
   };
 
   const confirmUnpublish = async () => {
     if (!pendingUnpublish) return;
     setError('');
-    setUpdatingId(pendingUnpublish.id);
     try {
-      applyUpdated(await setVideoPublished(pendingUnpublish.id, false));
+      await setPublished({
+        id: pendingUnpublish.id,
+        isPublished: false,
+      }).unwrap();
       setPendingUnpublish(null);
     } catch (err) {
       setError(getApiErrorMessage(err, 'Could not unpublish this video.'));
-    } finally {
-      setUpdatingId('');
     }
   };
+
+  const listError =
+    error ||
+    (isError
+      ? getApiErrorMessage(queryError, 'Could not load videos.')
+      : '');
 
   return (
     <div>
@@ -97,16 +84,16 @@ export default function AdminVideosPage() {
         }
       />
 
-      {error && (
+      {listError && (
         <p className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
+          {listError}
         </p>
       )}
 
       <section className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-stone-200/70">
-        {loading ? (
+        {showInitialLoader ? (
           <p className="px-5 py-10 text-sm text-stone-500">Loading videos…</p>
-        ) : videos.length === 0 ? (
+        ) : total === 0 ? (
           <div className="px-5 py-12 text-center">
             <p className="text-sm text-stone-500">No videos yet.</p>
             <Link
@@ -118,7 +105,11 @@ export default function AdminVideosPage() {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
+            <div
+              className={`overflow-x-auto transition-opacity ${
+                isFetching && data ? 'opacity-70' : ''
+              }`}
+            >
               <table className="min-w-full text-left text-sm">
                 <thead className="bg-stone-50 text-stone-500">
                   <tr>
@@ -129,7 +120,7 @@ export default function AdminVideosPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100">
-                  {pageItems.map((video) => (
+                  {videos.map((video) => (
                     <tr
                       key={video.id}
                       role="link"
@@ -184,7 +175,7 @@ export default function AdminVideosPage() {
                             <button
                               type="button"
                               onClick={() => setPendingUnpublish(video)}
-                              disabled={updatingId === video.id}
+                              disabled={isUpdating}
                               className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm font-medium text-ink hover:bg-stone-50 disabled:opacity-60"
                             >
                               Unpublish
@@ -193,10 +184,10 @@ export default function AdminVideosPage() {
                             <button
                               type="button"
                               onClick={() => publishVideo(video)}
-                              disabled={updatingId === video.id}
+                              disabled={isUpdating}
                               className="rounded-lg bg-ink px-3 py-1.5 text-sm font-medium text-white hover:bg-stone-800 disabled:opacity-60"
                             >
-                              {updatingId === video.id ? 'Publishing…' : 'Publish'}
+                              Publish
                             </button>
                           )}
                         </div>
@@ -209,8 +200,8 @@ export default function AdminVideosPage() {
             <Pagination
               page={page}
               pageSize={PAGE_SIZE}
-              total={videos.length}
-              onPageChange={setPage}
+              total={total}
+              onPageChange={(next) => dispatch(setVideosPage(next))}
             />
           </>
         )}
@@ -221,7 +212,7 @@ export default function AdminVideosPage() {
           title="Unpublish this video?"
           message={`“${pendingUnpublish.title}” will be hidden from learners until you publish it again.`}
           confirmLabel="Unpublish"
-          busy={updatingId === pendingUnpublish.id}
+          busy={isUpdating}
           onConfirm={confirmUnpublish}
           onCancel={() => setPendingUnpublish(null)}
         />

@@ -6,7 +6,6 @@ import {
   removeAssignment,
 } from '../../api/assignments';
 import { getLearner, updateLearner } from '../../api/users';
-import { listVideos } from '../../api/videos';
 import type { Assignment, User, Video } from '../../types';
 import { getApiErrorMessage } from '../../utils/apiError';
 import { formatDuration } from '../../utils/media';
@@ -22,6 +21,9 @@ import TextField from '../../components/form/TextField';
 import PasswordField from '../../components/form/PasswordField';
 import { fieldClassName } from '../../components/form/fieldStyles';
 import ThumbnailImage from '../../components/ThumbnailImage';
+import { useListVideosQuery } from '../../store/api';
+import { useAppDispatch } from '../../store/hooks';
+import { invalidateLearnerLists } from '../../store/invalidate';
 
 const ASSIGN_PAGE_SIZE = 6;
 const PROGRESS_PAGE_SIZE = 5;
@@ -42,6 +44,7 @@ function tabClass(active: boolean) {
 
 export default function LearnerDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const dispatch = useAppDispatch();
   const [searchParams, setSearchParams] = useSearchParams();
   const rawTab = searchParams.get('tab');
   const tab: LearnerTab =
@@ -49,12 +52,12 @@ export default function LearnerDetailPage() {
 
   const [learner, setLearner] = useState<User | null>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [videos, setVideos] = useState<Video[]>([]);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [selectedVideoIds, setSelectedVideoIds] = useState<string[]>([]);
   const [videoSearch, setVideoSearch] = useState('');
+  const [videoQuery, setVideoQuery] = useState('');
   const [assignPage, setAssignPage] = useState(1);
   const [progressPage, setProgressPage] = useState(1);
   const [previewVideo, setPreviewVideo] = useState<Video | null>(null);
@@ -70,16 +73,14 @@ export default function LearnerDetailPage() {
     setLoading(true);
     setError('');
     try {
-      const [nextLearner, nextAssignments, nextVideos] = await Promise.all([
+      const [nextLearner, nextAssignments] = await Promise.all([
         getLearner(id),
         listLearnerAssignments(id),
-        listVideos(),
       ]);
       setLearner(nextLearner);
       setName(nextLearner.name);
       setEmail(nextLearner.email);
       setAssignments(nextAssignments);
-      setVideos(nextVideos);
     } catch (err) {
       setError(getApiErrorMessage(err, 'Could not load learner details.'));
     } finally {
@@ -106,37 +107,29 @@ export default function LearnerDetailPage() {
     };
   }, [id, tab]);
 
-  const assignedVideoIds = useMemo(
-    () => new Set(assignments.map((item) => item.videoId)),
-    [assignments],
-  );
-
-  const availableVideos = useMemo(
-    () =>
-      videos.filter(
-        (video) => video.isPublished && !assignedVideoIds.has(video.id),
-      ),
-    [videos, assignedVideoIds],
-  );
-
-  const filteredAssignVideos = useMemo(() => {
-    const query = videoSearch.trim().toLowerCase();
-    if (!query) return availableVideos;
-    return availableVideos.filter(
-      (video) =>
-        video.title.toLowerCase().includes(query) ||
-        video.description.toLowerCase().includes(query),
-    );
-  }, [availableVideos, videoSearch]);
-
-  const assignPageItems = useMemo(() => {
-    const start = (assignPage - 1) * ASSIGN_PAGE_SIZE;
-    return filteredAssignVideos.slice(start, start + ASSIGN_PAGE_SIZE);
-  }, [filteredAssignVideos, assignPage]);
+  useEffect(() => {
+    const timer = setTimeout(() => setVideoQuery(videoSearch.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [videoSearch]);
 
   useEffect(() => {
     setAssignPage(1);
-  }, [videoSearch, availableVideos.length]);
+  }, [videoQuery]);
+
+  const assignQuery = useListVideosQuery(
+    {
+      page: assignPage,
+      limit: ASSIGN_PAGE_SIZE,
+      status: 'published',
+      unassignedFor: id,
+      search: videoQuery || undefined,
+    },
+    { skip: !id || tab !== 'assign' },
+  );
+
+  const assignVideos = assignQuery.data?.items ?? [];
+  const assignTotal = assignQuery.data?.total ?? 0;
+  const assignLoading = assignQuery.isLoading && !assignQuery.data;
 
   useEffect(() => {
     setProgressPage(1);
@@ -228,6 +221,7 @@ export default function LearnerDetailPage() {
       setLearner(updated);
       setPassword('');
       setMessage('Learner details saved.');
+      invalidateLearnerLists(dispatch);
     } catch (err) {
       setError(getApiErrorMessage(err, 'Could not update learner.'));
     } finally {
@@ -258,6 +252,8 @@ export default function LearnerDetailPage() {
       setAssignments(next);
       setSelectedVideoIds([]);
       setMessage(`Assigned ${count} video${count === 1 ? '' : 's'}.`);
+      invalidateLearnerLists(dispatch);
+      void assignQuery.refetch();
     } catch (err) {
       setError(getApiErrorMessage(err, 'Could not assign videos.'));
     } finally {
@@ -274,6 +270,8 @@ export default function LearnerDetailPage() {
       setAssignments((prev) => prev.filter((item) => item.id !== pendingRemoveId));
       setPendingRemoveId(null);
       setMessage('Assignment removed.');
+      invalidateLearnerLists(dispatch);
+      if (tab === 'assign') void assignQuery.refetch();
     } catch (err) {
       setError(getApiErrorMessage(err, 'Could not remove assignment.'));
     } finally {
@@ -427,19 +425,23 @@ export default function LearnerDetailPage() {
                 </div>
               </div>
 
-              {availableVideos.length === 0 ? (
+              {assignLoading && assignVideos.length === 0 ? (
+                <p className="rounded-xl bg-stone-50 px-4 py-3 text-sm text-stone-600">
+                  Loading videos…
+                </p>
+              ) : assignTotal === 0 && videoQuery ? (
+                <p className="rounded-xl bg-stone-50 px-4 py-3 text-sm text-stone-600">
+                  No videos match “{videoQuery}”.
+                </p>
+              ) : assignTotal === 0 ? (
                 <p className="rounded-xl bg-stone-50 px-4 py-3 text-sm text-stone-600">
                   No published videos left to assign. Publish a video first, or this learner already
                   has all of them.
                 </p>
-              ) : filteredAssignVideos.length === 0 ? (
-                <p className="rounded-xl bg-stone-50 px-4 py-3 text-sm text-stone-600">
-                  No videos match “{videoSearch.trim()}”.
-                </p>
               ) : (
                 <div className="overflow-hidden rounded-xl border border-stone-200">
                   <ul className="divide-y divide-stone-100">
-                    {assignPageItems.map((video) => {
+                    {assignVideos.map((video) => {
                       const checked = selectedVideoIds.includes(video.id);
                       return (
                         <li
@@ -483,7 +485,7 @@ export default function LearnerDetailPage() {
                   <Pagination
                     page={assignPage}
                     pageSize={ASSIGN_PAGE_SIZE}
-                    total={filteredAssignVideos.length}
+                    total={assignTotal}
                     onPageChange={setAssignPage}
                   />
                 </div>

@@ -6,6 +6,9 @@ import AdminSectionToolbar from '../../components/admin/AdminSectionToolbar';
 import TextField from '../../components/form/TextField';
 import PasswordField from '../../components/form/PasswordField';
 import { validateEmail, validatePassword } from '../../utils/validation';
+import { useAppDispatch } from '../../store/hooks';
+import { setLearnersPage } from '../../store/uiSlice';
+import { invalidateLearnerLists } from '../../store/invalidate';
 
 type FieldErrors = {
   name?: string;
@@ -15,6 +18,7 @@ type FieldErrors = {
 
 export default function CreateLearnerPage() {
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -47,6 +51,8 @@ export default function CreateLearnerPage() {
         email: email.trim(),
         password,
       });
+      invalidateLearnerLists(dispatch);
+      dispatch(setLearnersPage(1));
       navigate('/admin/learners');
     } catch {
       setError('Could not create learner. Email may already be in use.');

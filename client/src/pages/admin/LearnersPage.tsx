@@ -1,43 +1,26 @@
-import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { listLearners } from '../../api/users';
-import type { User } from '../../types';
 import AdminPageHeader from '../../components/admin/AdminPageHeader';
 import AdminSectionToolbar from '../../components/admin/AdminSectionToolbar';
 import Pagination from '../../components/admin/Pagination';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { setLearnersPage } from '../../store/uiSlice';
+import { useListLearnersQuery } from '../../store/api';
 
 const PAGE_SIZE = 8;
 
 export default function AdminLearnersPage() {
   const navigate = useNavigate();
-  const [learners, setLearners] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [page, setPage] = useState(1);
+  const dispatch = useAppDispatch();
+  const page = useAppSelector((state) => state.ui.learnersPage);
 
-  useEffect(() => {
-    let active = true;
+  const { data, isLoading, isFetching, isError } = useListLearnersQuery({
+    page,
+    limit: PAGE_SIZE,
+  });
 
-    listLearners()
-      .then((data) => {
-        if (!active) return;
-        setLearners(data);
-        setPage(1);
-      })
-      .catch(() => {
-        if (active) setError('Could not load learners.');
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const start = (page - 1) * PAGE_SIZE;
-  const pageItems = learners.slice(start, start + PAGE_SIZE);
+  const learners = data?.items ?? [];
+  const total = data?.total ?? 0;
+  const showInitialLoader = isLoading && !data;
 
   return (
     <div>
@@ -61,16 +44,16 @@ export default function AdminLearnersPage() {
         }
       />
 
-      {error && (
+      {isError && (
         <p className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
+          Could not load learners.
         </p>
       )}
 
       <section className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-stone-200/70">
-        {loading ? (
+        {showInitialLoader ? (
           <p className="px-5 py-10 text-sm text-stone-500">Loading learners…</p>
-        ) : learners.length === 0 ? (
+        ) : total === 0 ? (
           <div className="px-5 py-12 text-center">
             <p className="text-sm text-stone-500">No learners yet.</p>
             <Link
@@ -82,7 +65,11 @@ export default function AdminLearnersPage() {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
+            <div
+              className={`overflow-x-auto transition-opacity ${
+                isFetching && data ? 'opacity-70' : ''
+              }`}
+            >
               <table className="min-w-full text-left text-sm">
                 <thead className="bg-stone-50 text-stone-500">
                   <tr>
@@ -94,7 +81,7 @@ export default function AdminLearnersPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100">
-                  {pageItems.map((learner) => (
+                  {learners.map((learner) => (
                     <tr
                       key={learner.id}
                       role="link"
@@ -140,8 +127,8 @@ export default function AdminLearnersPage() {
             <Pagination
               page={page}
               pageSize={PAGE_SIZE}
-              total={learners.length}
-              onPageChange={setPage}
+              total={total}
+              onPageChange={(next) => dispatch(setLearnersPage(next))}
             />
           </>
         )}

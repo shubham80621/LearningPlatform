@@ -20,6 +20,8 @@ import {
   fieldErrorClassName,
   labelClassName,
 } from '../../components/form/fieldStyles';
+import { useAppDispatch } from '../../store/hooks';
+import { invalidateVideoLists } from '../../store/invalidate';
 
 type FieldErrors = {
   title?: string;
@@ -31,6 +33,7 @@ type FieldErrors = {
 export default function EditVideoPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = searchParams.get('tab') === 'questions' ? 'questions' : 'info';
   const [title, setTitle] = useState('');
@@ -132,6 +135,7 @@ export default function EditVideoPage() {
         thumbnail,
         video: videoFile,
       });
+      invalidateVideoLists(dispatch);
       navigate('/admin/videos');
     } catch (err) {
       setError(getApiErrorMessage(err, 'Could not update video. Try again.'));

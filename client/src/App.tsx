@@ -1,4 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { Provider } from 'react-redux';
+import { store } from './store';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminLayout from './components/AdminLayout';
@@ -20,6 +22,7 @@ import LearnerWatchPage from './pages/learner/WatchPage';
 
 function App() {
   return (
+    <Provider store={store}>
     <AuthProvider>
       <BrowserRouter>
         <Routes>
@@ -62,6 +65,7 @@ function App() {
         </Routes>
       </BrowserRouter>
     </AuthProvider>
+    </Provider>
   );
 }
 

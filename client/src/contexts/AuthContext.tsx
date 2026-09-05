@@ -7,6 +7,9 @@ import {
   type ReactNode,
 } from 'react';
 import type { User } from '../types';
+import { store } from '../store';
+import { api } from '../store/api';
+import { setLearnersPage, setVideosPage } from '../store/uiSlice';
 
 interface AuthContextValue {
   user: User | null;
@@ -33,6 +36,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);
+    store.dispatch(api.util.resetApiState());
+    store.dispatch(setVideosPage(1));
+    store.dispatch(setLearnersPage(1));
   }, []);
 
   const value = useMemo(

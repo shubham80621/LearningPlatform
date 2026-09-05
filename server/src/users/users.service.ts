@@ -5,18 +5,24 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcrypt';
-import { Model, Types } from 'mongoose';
+import { FilterQuery, Model, Types } from 'mongoose';
 import {
   Assignment,
   AssignmentDocument,
   AssignmentStatus,
 } from '../assignments/schemas/assignment.schema';
 import {
+  paginated,
+  resolvePagination,
+  toSearchPattern,
+} from '../common/pagination';
+import {
   Question,
   QuestionDocument,
 } from '../questions/schemas/question.schema';
 import { User, UserDocument, UserRole } from './schemas/user.schema';
 import { CreateLearnerDto } from './dto/create-learner.dto';
+import { ListLearnersQueryDto } from './dto/list-learners-query.dto';
 
 @Injectable()
 export class UsersService {
@@ -52,10 +58,31 @@ export class UsersService {
       .exec();
   }
 
-  async listLearnersWithStats() {
-    const learners = await this.findLearners();
-    if (learners.length === 0) return [];
+  async listLearnersWithStats(query: ListLearnersQueryDto = {}) {
+    const { page, limit, skip } = resolvePagination(query);
+    const filter: FilterQuery<UserDocument> = { role: UserRole.LEARNER };
 
+    const search = query.search?.trim();
+    if (search) {
+      const pattern = toSearchPattern(search);
+      filter.$or = [{ name: pattern }, { email: pattern }];
+    }
+
+    const [learners, total] = await Promise.all([
+      this.userModel
+        .find(filter)
+        .select('-passwordHash')
+        // _id breaks ties so rows cannot shift between pages.
+        .sort({ createdAt: -1, _id: -1 })
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.userModel.countDocuments(filter).exec(),
+    ]);
+
+    if (learners.length === 0) return paginated([], total, page, limit);
+
+    // Stats are gathered for this page only, not the whole learner table.
     const learnerIds = learners.map((learner) => learner._id);
     const assignments = await this.assignmentModel
       .find({ learnerId: { $in: learnerIds } })
@@ -98,7 +125,7 @@ export class UsersService {
       statsByLearner.set(learnerId, current);
     }
 
-    return learners.map((learner) => {
+    const rows = learners.map((learner) => {
       const id = learner._id.toString();
       const stats = statsByLearner.get(id) ?? {
         assignedVideos: 0,
@@ -112,6 +139,8 @@ export class UsersService {
         completed: stats.completed,
       };
     });
+
+    return paginated(rows, total, page, limit);
   }
 
   async createLearner(dto: CreateLearnerDto) {

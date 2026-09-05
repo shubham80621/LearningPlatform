@@ -1,8 +1,20 @@
 import api from './client';
-import type { Video } from '../types';
+import type { Paginated, Video } from '../types';
 
-export async function listVideos() {
-  const { data } = await api.get<Video[]>('/videos');
+export type ListVideosParams = {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: 'all' | 'published' | 'draft';
+  /** Learner id — drops videos already assigned to them. */
+  unassignedFor?: string;
+};
+
+export async function listVideos(params: ListVideosParams = {}) {
+  const search = params.search?.trim();
+  const { data } = await api.get<Paginated<Video>>('/videos', {
+    params: { ...params, search: search || undefined },
+  });
   return data;
 }
 

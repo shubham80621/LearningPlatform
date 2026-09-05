@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Request,
   UploadedFiles,
   UseFilters,
@@ -29,6 +30,7 @@ import { createLessonMediaMulterOptions } from '../uploads/multer.config';
 import { UploadExceptionFilter } from '../uploads/upload-exception.filter';
 import { MAX_IMAGE_SIZE_BYTES } from '../uploads/upload.constants';
 import { CreateVideoDto } from './dto/create-video.dto';
+import { ListVideosQueryDto } from './dto/list-videos-query.dto';
 import { UpdateVideoDto } from './dto/update-video.dto';
 import { VideosService } from './videos.service';
 
@@ -103,9 +105,13 @@ export class VideosController {
 
   @Get()
   @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'List all videos (admin)' })
-  findAll() {
-    return this.videosService.findAll();
+  @ApiOperation({
+    summary: 'List videos, paginated (admin)',
+    description:
+      'Returns { items, total, page, limit, totalPages }. Supports search, publish status, and excluding a learner’s existing assignments.',
+  })
+  findAll(@Query() query: ListVideosQueryDto) {
+    return this.videosService.findAll(query);
   }
 
   @Get(':id')

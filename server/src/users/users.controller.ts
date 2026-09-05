@@ -1,7 +1,17 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { CreateLearnerDto } from './dto/create-learner.dto';
+import { ListLearnersQueryDto } from './dto/list-learners-query.dto';
 import { UpdateLearnerDto } from './dto/update-learner.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -17,9 +27,13 @@ export class UsersController {
 
   @Get('learners')
   @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'List all learners with assignment stats (admin only)' })
-  listLearners() {
-    return this.usersService.listLearnersWithStats();
+  @ApiOperation({
+    summary: 'List learners with assignment stats, paginated (admin only)',
+    description:
+      'Returns { items, total, page, limit, totalPages }. Supports search by name or email.',
+  })
+  listLearners(@Query() query: ListLearnersQueryDto) {
+    return this.usersService.listLearnersWithStats(query);
   }
 
   @Get('learners/:id')

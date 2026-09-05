@@ -19,6 +19,9 @@ import {
   fieldErrorClassName,
   labelClassName,
 } from '../../components/form/fieldStyles';
+import { useAppDispatch } from '../../store/hooks';
+import { setVideosPage } from '../../store/uiSlice';
+import { invalidateVideoLists } from '../../store/invalidate';
 
 type FieldErrors = {
   title?: string;
@@ -29,6 +32,7 @@ type FieldErrors = {
 
 export default function CreateVideoPage() {
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [thumbnail, setThumbnail] = useState<File | null>(null);
@@ -106,6 +110,8 @@ export default function CreateVideoPage() {
         thumbnail,
         video: videoFile,
       });
+      invalidateVideoLists(dispatch);
+      dispatch(setVideosPage(1));
       navigate('/admin/videos');
     } catch (err) {
       setError(getApiErrorMessage(err, 'Could not create video. Check files and try again.'));

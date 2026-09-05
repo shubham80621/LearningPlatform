@@ -1,11 +1,10 @@
-import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { listLearners } from '../../api/users';
-import { listVideos } from '../../api/videos';
 import { useAuth } from '../../contexts/AuthContext';
-import type { User, Video } from '../../types';
 import AdminPageHeader from '../../components/admin/AdminPageHeader';
 import AdminSectionToolbar from '../../components/admin/AdminSectionToolbar';
+import { useListLearnersQuery, useListVideosQuery } from '../../store/api';
+
+const RECENT_LEARNERS = 6;
 
 const kpiCards = [
   {
@@ -36,30 +35,28 @@ const kpiCards = [
   },
 ] as const;
 
+/** Show cached dashboard immediately; always revalidate quietly in the background. */
+const silentRefresh = { refetchOnMountOrArgChange: true as const };
+
 export default function AdminDashboardPage() {
   const { user } = useAuth();
-  const [learners, setLearners] = useState<User[]>([]);
-  const [videos, setVideos] = useState<Video[]>([]);
-  const [error, setError] = useState('');
 
-  useEffect(() => {
-    let active = true;
+  const learnersQuery = useListLearnersQuery(
+    { limit: RECENT_LEARNERS },
+    silentRefresh,
+  );
+  const publishedQuery = useListVideosQuery(
+    { status: 'published', limit: 1 },
+    silentRefresh,
+  );
 
-    Promise.all([listLearners(), listVideos()])
-      .then(([learnerData, videoData]) => {
-        if (!active) return;
-        setLearners(learnerData);
-        setVideos(videoData);
-      })
-      .catch(() => {
-        if (active) setError('Could not load dashboard data.');
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
+  const learners = learnersQuery.data?.items ?? [];
+  const learnerTotal = learnersQuery.data?.total ?? 0;
+  const publishedTotal = publishedQuery.data?.total ?? 0;
+  const error =
+    learnersQuery.isError || publishedQuery.isError
+      ? 'Could not load dashboard data.'
+      : '';
   const firstName = user?.name?.split(' ')[0] || 'Admin';
 
   return (
@@ -89,7 +86,7 @@ export default function AdminDashboardPage() {
         }
       />
 
-      {error && (
+      {error && !learnersQuery.data && !publishedQuery.data && (
         <p className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </p>
@@ -99,9 +96,9 @@ export default function AdminDashboardPage() {
         {kpiCards.map((card) => {
           const value =
             card.key === 'learners'
-              ? String(learners.length)
+              ? String(learnerTotal)
               : card.key === 'videos'
-                ? String(videos.filter((video) => video.isPublished).length)
+                ? String(publishedTotal)
                 : card.placeholder;
 
           return (
@@ -171,7 +168,11 @@ export default function AdminDashboardPage() {
             </Link>
           </div>
 
-          {learners.length === 0 ? (
+          {learnersQuery.isLoading && !learnersQuery.data ? (
+            <p className="rounded-2xl bg-stone-50 px-4 py-10 text-center text-sm text-stone-500">
+              Loading learners…
+            </p>
+          ) : learners.length === 0 ? (
             <div className="rounded-2xl bg-stone-50 px-4 py-10 text-center">
               <p className="text-sm text-stone-500">No learners yet.</p>
               <Link
@@ -182,8 +183,12 @@ export default function AdminDashboardPage() {
               </Link>
             </div>
           ) : (
-            <ul className="divide-y divide-stone-100">
-              {learners.slice(0, 6).map((learner) => (
+            <ul
+              className={`divide-y divide-stone-100 transition-opacity ${
+                learnersQuery.isFetching && learnersQuery.data ? 'opacity-70' : ''
+              }`}
+            >
+              {learners.map((learner) => (
                 <li key={learner.id} className="flex items-center gap-3 py-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-stone-100 text-sm font-semibold text-ink">
                     {learner.name.slice(0, 1).toUpperCase()}
