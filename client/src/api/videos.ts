@@ -1,5 +1,5 @@
 import api from './client';
-import type { Paginated, Video } from '../types';
+import type { Video } from '../types';
 
 export type ListVideosParams = {
   page?: number;
@@ -9,14 +9,6 @@ export type ListVideosParams = {
   /** Learner id — drops videos already assigned to them. */
   unassignedFor?: string;
 };
-
-export async function listVideos(params: ListVideosParams = {}) {
-  const search = params.search?.trim();
-  const { data } = await api.get<Paginated<Video>>('/videos', {
-    params: { ...params, search: search || undefined },
-  });
-  return data;
-}
 
 export async function createVideo(payload: {
   title: string;
@@ -67,11 +59,5 @@ export async function updateVideo(
   const { data } = await api.patch<Video>(`/videos/${id}`, form, {
     timeout: 10 * 60 * 1000,
   });
-  return data;
-}
-
-export async function setVideoPublished(id: string, isPublished: boolean) {
-  const path = isPublished ? `/videos/${id}/publish` : `/videos/${id}/unpublish`;
-  const { data } = await api.post<Video>(path);
   return data;
 }

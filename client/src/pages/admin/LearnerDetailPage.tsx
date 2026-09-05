@@ -21,6 +21,10 @@ import PasswordField from '../../components/form/PasswordField';
 import { fieldClassName } from '../../components/form/fieldStyles';
 import ThumbnailImage from '../../components/ThumbnailImage';
 import { InfiniteScrollSentinel } from '../../components/InfiniteScrollSentinel';
+import {
+  useInfinitePage,
+  useSyncInfinitePage,
+} from '../../hooks/infiniteQuery';
 import { useListVideosQuery } from '../../store/api';
 import { useAppDispatch } from '../../store/hooks';
 import { invalidateLearnerLists } from '../../store/invalidate';
@@ -57,7 +61,12 @@ export default function LearnerDetailPage() {
   const [selectedVideoIds, setSelectedVideoIds] = useState<string[]>([]);
   const [videoSearch, setVideoSearch] = useState('');
   const [videoQuery, setVideoQuery] = useState('');
-  const [assignPage, setAssignPage] = useState(1);
+  const {
+    page: assignPage,
+    reset: resetAssignPage,
+    loadMore: loadMoreAssign,
+    syncCachedPage: syncAssignPage,
+  } = useInfinitePage();
   const [previewVideo, setPreviewVideo] = useState<Video | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [loading, setLoading] = useState(true);
@@ -111,8 +120,8 @@ export default function LearnerDetailPage() {
   }, [videoSearch]);
 
   useEffect(() => {
-    setAssignPage(1);
-  }, [videoQuery]);
+    resetAssignPage();
+  }, [videoQuery, resetAssignPage]);
 
   const assignQuery = useListVideosQuery(
     {
@@ -124,12 +133,7 @@ export default function LearnerDetailPage() {
     },
     { skip: !id || tab !== 'assign' },
   );
-
-  useEffect(() => {
-    if (assignQuery.data?.page != null && assignQuery.data.page > assignPage) {
-      setAssignPage(assignQuery.data.page);
-    }
-  }, [assignQuery.data?.page, assignPage]);
+  useSyncInfinitePage(syncAssignPage, assignQuery.data?.page);
 
   const assignVideos = assignQuery.data?.items ?? [];
   const assignTotal = assignQuery.data?.total ?? 0;
@@ -488,7 +492,7 @@ export default function LearnerDetailPage() {
                     loading={assignQuery.isFetching && assignPage > 1}
                     onLoadMore={() => {
                       if (assignHasMore && !assignQuery.isFetching) {
-                        setAssignPage((current) => current + 1);
+                        loadMoreAssign();
                       }
                     }}
                   />

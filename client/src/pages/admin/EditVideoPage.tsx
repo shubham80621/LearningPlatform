@@ -2,13 +2,13 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { getVideo, updateVideo } from '../../api/videos';
 import { getApiErrorMessage } from '../../utils/apiError';
-import { formatDuration, readVideoDuration } from '../../utils/media';
+import { formatDuration } from '../../utils/media';
 import {
   validateRequiredText,
   validateThumbnailFile,
   validateVideoFile,
-  validateVideoSelection,
 } from '../../utils/mediaValidation';
+import { pickThumbnail, pickVideo } from '../../utils/videoMediaPick';
 import AdminPageHeader from '../../components/admin/AdminPageHeader';
 import AdminSectionToolbar from '../../components/admin/AdminSectionToolbar';
 import VideoQuestionsPanel from '../../components/admin/VideoQuestionsPanel';
@@ -86,39 +86,29 @@ export default function EditVideoPage() {
   };
 
   const handleThumbnailChange = (file: File) => {
-    const errorMessage = validateThumbnailFile(file);
-    if (errorMessage) {
+    const result = pickThumbnail(file);
+    if (!result.ok) {
       setThumbnail(null);
       setThumbnailPreview('');
-      setFieldErrors((prev) => ({ ...prev, thumbnail: errorMessage }));
+      setFieldErrors((prev) => ({ ...prev, thumbnail: result.error }));
       return;
     }
-    setThumbnail(file);
-    setThumbnailPreview(URL.createObjectURL(file));
+    setThumbnail(result.file);
+    setThumbnailPreview(result.previewUrl);
     setFieldErrors((prev) => ({ ...prev, thumbnail: undefined }));
   };
 
   const handleVideoChange = async (file: File) => {
-    const selectionError = validateVideoSelection(file);
-    if (selectionError) {
+    const result = await pickVideo(file);
+    if (!result.ok) {
       setVideoFile(null);
-      setFieldErrors((prev) => ({ ...prev, video: selectionError }));
+      setFieldErrors((prev) => ({ ...prev, video: result.error }));
       return;
     }
-
-    try {
-      const seconds = await readVideoDuration(file);
-      setVideoFile(file);
-      setVideoUrl(URL.createObjectURL(file));
-      setDuration(seconds);
-      setFieldErrors((prev) => ({ ...prev, video: undefined }));
-    } catch {
-      setVideoFile(null);
-      setFieldErrors((prev) => ({
-        ...prev,
-        video: 'Choose a valid video file. This one could not be read.',
-      }));
-    }
+    setVideoFile(result.file);
+    setVideoUrl(result.previewUrl);
+    setDuration(result.duration);
+    setFieldErrors((prev) => ({ ...prev, video: undefined }));
   };
 
   const handleSubmit = async (event: FormEvent) => {

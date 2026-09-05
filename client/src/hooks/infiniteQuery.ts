@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useState } from 'react';
 import type { Paginated } from '../types';
 
 /**
@@ -51,4 +52,35 @@ export function infiniteForceRefetch<T extends { page?: number }>({
   previousArg: T | void;
 }) {
   return (currentArg?.page ?? 1) !== (previousArg?.page ?? 1);
+}
+
+/**
+ * Page cursor for infinite lists.
+ * After each query result, call `syncCachedPage(data?.page)` so a warm RTK
+ * cache resumes at the highest loaded page.
+ * Call `reset()` when filters/search change.
+ */
+export function useInfinitePage() {
+  const [page, setPage] = useState(1);
+
+  const reset = useCallback(() => setPage(1), []);
+  const loadMore = useCallback(() => {
+    setPage((current) => current + 1);
+  }, []);
+  const syncCachedPage = useCallback((cachedPage?: number) => {
+    if (cachedPage == null) return;
+    setPage((current) => (cachedPage > current ? cachedPage : current));
+  }, []);
+
+  return { page, reset, loadMore, syncCachedPage };
+}
+
+/** Convenience: keep local page in sync with RTK's merged `data.page`. */
+export function useSyncInfinitePage(
+  syncCachedPage: (cachedPage?: number) => void,
+  cachedPage?: number,
+) {
+  useEffect(() => {
+    syncCachedPage(cachedPage);
+  }, [cachedPage, syncCachedPage]);
 }

@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import AssignmentLessonCard from '../../components/AssignmentLessonCard';
 import DonutChart from '../../components/DonutChart';
-import ThumbnailImage from '../../components/ThumbnailImage';
-import AssignmentStatusBadge from '../../components/AssignmentStatusBadge';
-import { useAuth } from '../../contexts/AuthContext';
-import type { LearnerAssignment } from '../../types';
-import { getApiErrorMessage } from '../../utils/apiError';
-import { formatDuration } from '../../utils/media';
 import { InfiniteScrollSentinel } from '../../components/InfiniteScrollSentinel';
+import {
+  useInfinitePage,
+  useSyncInfinitePage,
+} from '../../hooks/infiniteQuery';
+import { useAuth } from '../../contexts/AuthContext';
+import { getApiErrorMessage } from '../../utils/apiError';
 import {
   useListMyAssignmentsQuery,
   useMyProgressSummaryQuery,
@@ -20,18 +20,18 @@ export default function LearnerDashboardPage() {
   const { user } = useAuth();
   const [query, setQuery] = useState('');
   const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
+  const { page, reset, loadMore, syncCachedPage } = useInfinitePage();
 
   useEffect(() => {
     const timer = setTimeout(() => {
       const next = query.trim();
       setSearch((prev) => {
-        if (prev !== next) setPage(1);
+        if (prev !== next) reset();
         return next;
       });
     }, 300);
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [query, reset]);
 
   const summaryQuery = useMyProgressSummaryQuery(undefined, silentRefresh);
   const listQuery = useListMyAssignmentsQuery({
@@ -39,12 +39,7 @@ export default function LearnerDashboardPage() {
     limit: PAGE_SIZE,
     search: search || undefined,
   });
-
-  useEffect(() => {
-    if (listQuery.data?.page != null && listQuery.data.page > page) {
-      setPage(listQuery.data.page);
-    }
-  }, [listQuery.data?.page, page]);
+  useSyncInfinitePage(syncCachedPage, listQuery.data?.page);
 
   const summary = summaryQuery.data;
   const assignments = listQuery.data?.items ?? [];
@@ -70,6 +65,8 @@ export default function LearnerDashboardPage() {
     videosCompleted: 0,
     videosInProgress: 0,
     videosAssigned: 0,
+    watchSum: 0,
+    avgWatchPercent: 0,
     totalQuestions: 0,
     answered: 0,
     correct: 0,
@@ -276,7 +273,11 @@ export default function LearnerDashboardPage() {
                 <div>
                   <div className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     {assignments.map((item) => (
-                      <VideoCard key={item.id} item={item} />
+                      <AssignmentLessonCard
+                        key={item.id}
+                        item={item}
+                        variant="grid"
+                      />
                     ))}
                   </div>
                   <p className="mt-4 text-center text-xs text-stone-500">
@@ -286,9 +287,7 @@ export default function LearnerDashboardPage() {
                     hasMore={hasMore}
                     loading={listQuery.isFetching && page > 1}
                     onLoadMore={() => {
-                      if (hasMore && !listQuery.isFetching) {
-                        setPage((current) => current + 1);
-                      }
+                      if (hasMore && !listQuery.isFetching) loadMore();
                     }}
                   />
                 </div>
@@ -298,54 +297,5 @@ export default function LearnerDashboardPage() {
         </div>
       )}
     </div>
-  );
-}
-
-function VideoCard({ item }: { item: LearnerAssignment }) {
-  const video = item.video;
-  const progress = Math.min(Math.max(item.completionPercentage ?? 0, 0), 100);
-  const stats = item.stats;
-
-  return (
-    <Link to={`/learner/learn/${item.id}`} className="group block">
-      <div className="relative overflow-hidden rounded-xl bg-stone-100">
-        <ThumbnailImage
-          src={video.thumbnailUrl}
-          alt=""
-          className="aspect-video w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-        />
-        <span className="absolute bottom-2 right-2 rounded bg-black/80 px-1.5 py-0.5 text-[11px] font-semibold text-white">
-          {formatDuration(video.duration ?? 0)}
-        </span>
-        <div className="absolute left-2 top-2">
-          <AssignmentStatusBadge status={item.status} />
-        </div>
-        {progress > 0 && (
-          <div className="absolute inset-x-0 bottom-0 h-1 bg-stone-300/80">
-            <div className="h-full bg-teal-600" style={{ width: `${progress}%` }} />
-          </div>
-        )}
-      </div>
-
-      <div className="mt-3 flex gap-3">
-        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-teal-50 text-xs font-semibold text-teal-800">
-          {video.title.slice(0, 1).toUpperCase()}
-        </div>
-        <div className="min-w-0">
-          <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-ink group-hover:text-teal-800">
-            {video.title}
-          </h3>
-          <p className="mt-1 text-xs text-stone-500">
-            {progress}% watched
-            {stats && stats.totalQuestions > 0 && (
-              <>
-                {' '}
-                · {stats.answered}/{stats.totalQuestions} answered
-              </>
-            )}
-          </p>
-        </div>
-      </div>
-    </Link>
   );
 }

@@ -5,8 +5,8 @@ import {
   saveMyProgress,
   submitMyAnswer,
 } from '../../api/assignments';
-import ThumbnailImage from '../../components/ThumbnailImage';
 import AssignmentStatusBadge from '../../components/AssignmentStatusBadge';
+import AssignmentLessonCard from '../../components/AssignmentLessonCard';
 import type {
   LearnerWatchQuestion,
   LearnerWatchSession,
@@ -20,6 +20,10 @@ import {
   writeBufferedProgress,
 } from '../../utils/watchProgress';
 import { InfiniteScrollSentinel } from '../../components/InfiniteScrollSentinel';
+import {
+  useInfinitePage,
+  useSyncInfinitePage,
+} from '../../hooks/infiniteQuery';
 import { useListMyAssignmentsQuery } from '../../store/api';
 import { useAppDispatch } from '../../store/hooks';
 import { invalidateMyAssignments } from '../../store/invalidate';
@@ -62,7 +66,12 @@ export default function LearnerWatchPage() {
   const [playlistFilter, setPlaylistFilter] = useState<
     'all' | 'in_progress' | 'not_started' | 'completed'
   >('all');
-  const [playlistPage, setPlaylistPage] = useState(1);
+  const {
+    page: playlistPage,
+    reset: resetPlaylistPage,
+    loadMore: loadMorePlaylist,
+    syncCachedPage: syncPlaylistPage,
+  } = useInfinitePage();
 
   const playlistStatus =
     playlistFilter === 'completed'
@@ -74,20 +83,15 @@ export default function LearnerWatchPage() {
           : ('all' as const);
 
   useEffect(() => {
-    setPlaylistPage(1);
-  }, [playlistFilter]);
+    resetPlaylistPage();
+  }, [playlistFilter, resetPlaylistPage]);
 
   const playlistQuery = useListMyAssignmentsQuery({
     page: playlistPage,
     limit: PLAYLIST_PAGE_SIZE,
     status: playlistStatus,
   });
-
-  useEffect(() => {
-    if (playlistQuery.data?.page != null && playlistQuery.data.page > playlistPage) {
-      setPlaylistPage(playlistQuery.data.page);
-    }
-  }, [playlistQuery.data?.page, playlistPage]);
+  useSyncInfinitePage(syncPlaylistPage, playlistQuery.data?.page);
 
   const playlist = playlistQuery.data?.items ?? [];
   const playlistTotal = playlistQuery.data?.total ?? 0;
@@ -774,61 +778,15 @@ export default function LearnerWatchPage() {
                 No lessons in this filter.
               </li>
             ) : (
-              filteredPlaylist.map((item) => {
-                const isCurrent = item.id === session.id;
-                return (
-                  <li key={item.id}>
-                    <Link
-                      to={`/learner/learn/${item.id}`}
-                      className={`flex gap-2 rounded-xl p-1.5 transition hover:bg-stone-50 ${
-                        isCurrent ? 'bg-stone-50 ring-1 ring-stone-200' : ''
-                      }`}
-                    >
-                      <div className="relative w-[168px] shrink-0 overflow-hidden rounded-lg bg-stone-100">
-                        <ThumbnailImage
-                          src={item.video.thumbnailUrl}
-                          alt=""
-                          className="aspect-video w-full object-cover"
-                        />
-                        <span className="absolute bottom-1 right-1 rounded bg-black/80 px-1 py-0.5 text-[10px] font-semibold text-white">
-                          {formatDuration(item.video.duration)}
-                        </span>
-                        {item.completionPercentage > 0 && (
-                          <div className="absolute inset-x-0 bottom-0 h-0.5 bg-stone-300/80">
-                            <div
-                              className="h-full bg-teal-600"
-                              style={{
-                                width: `${item.completionPercentage}%`,
-                              }}
-                            />
-                          </div>
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1 py-0.5 pr-1">
-                        <p className="line-clamp-2 text-sm font-semibold leading-snug text-ink">
-                          {item.video.title}
-                        </p>
-                        <p className="mt-1 text-xs text-stone-500">
-                          {item.completionPercentage}% watched
-                        </p>
-                        <div className="mt-1.5">
-                          <AssignmentStatusBadge status={item.status} />
-                        </div>
-                        <p className="mt-1 text-xs text-stone-500">
-                          {item.questionCount > 0
-                            ? `${item.answeredCount}/${item.questionCount} questions`
-                            : 'No questions'}
-                        </p>
-                        {isCurrent && (
-                          <p className="mt-1 text-[11px] font-semibold text-teal-700">
-                            Now playing
-                          </p>
-                        )}
-                      </div>
-                    </Link>
-                  </li>
-                );
-              })
+              filteredPlaylist.map((item) => (
+                <li key={item.id}>
+                  <AssignmentLessonCard
+                    item={item}
+                    variant="playlist"
+                    current={item.id === session.id}
+                  />
+                </li>
+              ))
             )}
           </ul>
           {playlistTotal > 0 && (
@@ -841,7 +799,7 @@ export default function LearnerWatchPage() {
             loading={playlistQuery.isFetching && playlistPage > 1}
             onLoadMore={() => {
               if (playlistHasMore && !playlistQuery.isFetching) {
-                setPlaylistPage((current) => current + 1);
+                loadMorePlaylist();
               }
             }}
           />

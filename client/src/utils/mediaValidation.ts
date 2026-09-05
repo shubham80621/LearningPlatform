@@ -1,7 +1,6 @@
-import {
-  MAX_IMAGE_SIZE_BYTES,
-  MAX_VIDEO_SIZE_BYTES,
-} from '../api/uploads';
+/** Client-side upload size limits (keep in sync with server defaults). */
+export const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+export const MAX_VIDEO_SIZE_BYTES = 200 * 1024 * 1024;
 
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'];

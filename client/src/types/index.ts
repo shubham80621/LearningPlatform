@@ -50,14 +50,6 @@ export interface Video {
   updatedAt?: string;
 }
 
-export interface StoredUpload {
-  url: string;
-  key: string;
-  originalName: string;
-  mimeType: string;
-  size: number;
-}
-
 export type QuestionType = 'single' | 'multiple' | 'short';
 
 export interface Question {

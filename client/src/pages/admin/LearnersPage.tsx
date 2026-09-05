@@ -1,24 +1,24 @@
-import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AdminPageHeader from '../../components/admin/AdminPageHeader';
 import AdminSectionToolbar from '../../components/admin/AdminSectionToolbar';
 import { InfiniteScrollSentinel } from '../../components/InfiniteScrollSentinel';
+import {
+  useInfinitePage,
+  useSyncInfinitePage,
+} from '../../hooks/infiniteQuery';
 import { useListLearnersQuery } from '../../store/api';
 
 const PAGE_SIZE = 8;
 
 export default function AdminLearnersPage() {
   const navigate = useNavigate();
-  const [page, setPage] = useState(1);
+  const { page, loadMore, syncCachedPage } = useInfinitePage();
 
   const { data, isLoading, isFetching, isError } = useListLearnersQuery({
     page,
     limit: PAGE_SIZE,
   });
-
-  useEffect(() => {
-    if (data?.page != null && data.page > page) setPage(data.page);
-  }, [data?.page, page]);
+  useSyncInfinitePage(syncCachedPage, data?.page);
 
   const learners = data?.items ?? [];
   const total = data?.total ?? 0;
@@ -130,7 +130,7 @@ export default function AdminLearnersPage() {
               hasMore={hasMore}
               loading={isFetching && page > 1}
               onLoadMore={() => {
-                if (hasMore && !isFetching) setPage((current) => current + 1);
+                if (hasMore && !isFetching) loadMore();
               }}
             />
           </>

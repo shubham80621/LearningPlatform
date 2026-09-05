@@ -1,14 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import AssignmentStatusBadge from '../../components/AssignmentStatusBadge';
-import ThumbnailImage from '../../components/ThumbnailImage';
-import type { LearnerAssignment } from '../../types';
-import { getApiErrorMessage } from '../../utils/apiError';
-import { formatDuration } from '../../utils/media';
+import AssignmentLessonCard from '../../components/AssignmentLessonCard';
 import { InfiniteScrollSentinel } from '../../components/InfiniteScrollSentinel';
+import {
+  useInfinitePage,
+  useSyncInfinitePage,
+} from '../../hooks/infiniteQuery';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { setLearnerLearnStatus } from '../../store/uiSlice';
 import { useListMyAssignmentsQuery } from '../../store/api';
+import { getApiErrorMessage } from '../../utils/apiError';
 
 const PAGE_SIZE = 8;
 
@@ -22,21 +23,18 @@ const FILTERS = [
 export default function LearnerLearnPage() {
   const dispatch = useAppDispatch();
   const status = useAppSelector((state) => state.ui.learnerLearnStatus);
-  const [page, setPage] = useState(1);
+  const { page, reset, loadMore, syncCachedPage } = useInfinitePage();
 
   useEffect(() => {
-    setPage(1);
-  }, [status]);
+    reset();
+  }, [status, reset]);
 
   const { data, isLoading, isFetching, isError, error } = useListMyAssignmentsQuery({
     page,
     limit: PAGE_SIZE,
     status,
   });
-
-  useEffect(() => {
-    if (data?.page != null && data.page > page) setPage(data.page);
-  }, [data?.page, page]);
+  useSyncInfinitePage(syncCachedPage, data?.page);
 
   const assignments = data?.items ?? [];
   const total = data?.total ?? 0;
@@ -102,7 +100,9 @@ export default function LearnerLearnPage() {
         <div className="mt-6 overflow-hidden rounded-2xl border border-stone-200 bg-white">
           <ul className="divide-y divide-stone-100">
             {assignments.map((item) => (
-              <LessonRow key={item.id} item={item} />
+              <li key={item.id}>
+                <AssignmentLessonCard item={item} variant="row" />
+              </li>
             ))}
           </ul>
           <p className="border-t border-stone-100 px-4 py-2 text-xs text-stone-500">
@@ -112,54 +112,11 @@ export default function LearnerLearnPage() {
             hasMore={hasMore}
             loading={isFetching && page > 1}
             onLoadMore={() => {
-              if (hasMore && !isFetching) setPage((current) => current + 1);
+              if (hasMore && !isFetching) loadMore();
             }}
           />
         </div>
       )}
     </div>
-  );
-}
-
-function LessonRow({ item }: { item: LearnerAssignment }) {
-  return (
-    <li>
-      <Link
-        to={`/learner/learn/${item.id}`}
-        className="flex gap-3 p-3 transition hover:bg-stone-50 sm:gap-4 sm:p-4"
-      >
-        <div className="relative w-36 shrink-0 overflow-hidden rounded-lg bg-stone-100 sm:w-44">
-          <ThumbnailImage
-            src={item.video.thumbnailUrl}
-            alt=""
-            className="aspect-video w-full object-cover"
-          />
-          <span className="absolute bottom-1.5 right-1.5 rounded bg-black/80 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-            {formatDuration(item.video.duration)}
-          </span>
-        </div>
-        <div className="min-w-0 flex-1 py-0.5">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="line-clamp-2 text-sm font-semibold text-ink sm:text-base">
-              {item.video.title}
-            </h3>
-            <AssignmentStatusBadge status={item.status} />
-          </div>
-          <p className="mt-1 text-xs text-stone-500 sm:text-sm">
-            {item.completionPercentage}% watched
-            {item.questionCount > 0 &&
-              ` · ${item.answeredCount}/${item.questionCount} questions`}
-          </p>
-          {item.completionPercentage > 0 && (
-            <div className="mt-2 h-1 overflow-hidden rounded-full bg-stone-200">
-              <div
-                className="h-full bg-teal-600"
-                style={{ width: `${item.completionPercentage}%` }}
-              />
-            </div>
-          )}
-        </div>
-      </Link>
-    </li>
   );
 }

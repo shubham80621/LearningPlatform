@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { Video } from '../../types';
 import { getApiErrorMessage } from '../../utils/apiError';
@@ -8,6 +8,10 @@ import AdminSectionToolbar from '../../components/admin/AdminSectionToolbar';
 import ThumbnailImage from '../../components/ThumbnailImage';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { InfiniteScrollSentinel } from '../../components/InfiniteScrollSentinel';
+import {
+  useInfinitePage,
+  useSyncInfinitePage,
+} from '../../hooks/infiniteQuery';
 import {
   useListVideosQuery,
   useSetVideoPublishedMutation,
@@ -19,15 +23,12 @@ export default function AdminVideosPage() {
   const navigate = useNavigate();
   const [error, setError] = useState('');
   const [pendingUnpublish, setPendingUnpublish] = useState<Video | null>(null);
-  const [page, setPage] = useState(1);
+  const { page, loadMore, syncCachedPage } = useInfinitePage();
 
   const { data, isLoading, isFetching, isError, error: queryError } =
     useListVideosQuery({ page, limit: PAGE_SIZE });
+  useSyncInfinitePage(syncCachedPage, data?.page);
   const [setPublished, { isLoading: isUpdating }] = useSetVideoPublishedMutation();
-
-  useEffect(() => {
-    if (data?.page != null && data.page > page) setPage(data.page);
-  }, [data?.page, page]);
 
   const videos = data?.items ?? [];
   const total = data?.total ?? 0;
@@ -199,7 +200,7 @@ export default function AdminVideosPage() {
               hasMore={hasMore}
               loading={isFetching && page > 1}
               onLoadMore={() => {
-                if (hasMore && !isFetching) setPage((current) => current + 1);
+                if (hasMore && !isFetching) loadMore();
               }}
             />
           </>
