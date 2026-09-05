@@ -16,10 +16,12 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { UserRole } from '../users/schemas/user.schema';
+import { throttlerLimits } from '../common/throttler.config';
 import { createMulterOptions } from './multer.config';
 import { UploadExceptionFilter } from './upload-exception.filter';
 import {
@@ -28,11 +30,14 @@ import {
 } from './upload.constants';
 import { UploadService } from './upload.service';
 
+const { ttl, uploadLimit } = throttlerLimits();
+
 @ApiTags('uploads')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN)
 @UseFilters(UploadExceptionFilter)
+@Throttle({ default: { limit: uploadLimit, ttl } })
 @Controller('uploads')
 export class UploadsController {
   constructor(private readonly uploadService: UploadService) {}
