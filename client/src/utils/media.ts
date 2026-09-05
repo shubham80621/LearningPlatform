@@ -1,10 +1,13 @@
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
-
 export function mediaUrl(path: string) {
   if (!path) return '';
   if (path.startsWith('http://') || path.startsWith('https://')) return path;
   if (path.startsWith('blob:') || path.startsWith('data:')) return path;
-  const origin = API_BASE.replace(/\/api\/?$/, '');
+  const apiBase = (import.meta.env.VITE_API_URL || 'http://localhost:3000/api').replace(
+    /\/$/,
+    '',
+  );
+  // Relative `/api` (Docker nginx) → same-origin `/uploads/...`
+  const origin = apiBase === '/api' ? '' : apiBase.replace(/\/api$/, '');
   return `${origin}${path.startsWith('/') ? path : `/${path}`}`;
 }
 

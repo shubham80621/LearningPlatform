@@ -17,15 +17,15 @@ import {
   QuestionSchema,
   QuestionType,
 } from './questions/schemas/question.schema';
-import { IMAGE_UPLOAD_DIR, UPLOAD_ROOT } from './uploads/upload.constants';
+import { IMAGE_UPLOAD_DIR, VIDEO_UPLOAD_DIR } from './uploads/upload.constants';
 import { User, UserRole, UserSchema } from './users/schemas/user.schema';
 import { Video, VideoSchema } from './videos/schemas/video.schema';
 
 /**
- * Shared media already in server/uploads/ (one uploaded demo clip).
- * Every seeded video reuses this file so demos work without extra uploads.
+ * Demo clip lives in server/seed-assets/videos/ (committed) and is copied
+ * into uploads/videos/ on each seed run. Every seeded lesson reuses it.
  */
-const DEMO_VIDEO_FILE = '3656cac4-34c0-48d5-b2dd-22097dd552fb.mov';
+const DEMO_VIDEO_FILE = 'demo.mov';
 /**
  * Thumbnails live in server/seed-assets/thumbnails/ (committed) and are
  * copied into uploads/images/ on each seed run.
@@ -35,12 +35,24 @@ const DEMO_THUMBS = [
   'learn-everything-fast.png',
   'online-course.jpg',
 ] as const;
-const SEED_THUMB_DIR = join(__dirname, '..', 'seed-assets', 'thumbnails');
+const SEED_ASSETS_DIR = join(__dirname, '..', 'seed-assets');
+const SEED_THUMB_DIR = join(SEED_ASSETS_DIR, 'thumbnails');
+const SEED_VIDEO_DIR = join(SEED_ASSETS_DIR, 'videos');
 /** Known duration of the demo .mov (seconds). */
 const DEMO_DURATION = 31;
 
-function ensureDemoThumbnails() {
+function ensureDemoMedia() {
   mkdirSync(IMAGE_UPLOAD_DIR, { recursive: true });
+  mkdirSync(VIDEO_UPLOAD_DIR, { recursive: true });
+
+  const videoSource = join(SEED_VIDEO_DIR, DEMO_VIDEO_FILE);
+  if (!existsSync(videoSource)) {
+    throw new Error(
+      `Seed video missing at seed-assets/videos/${DEMO_VIDEO_FILE}.`,
+    );
+  }
+  copyFileSync(videoSource, join(VIDEO_UPLOAD_DIR, DEMO_VIDEO_FILE));
+
   for (const thumb of DEMO_THUMBS) {
     const source = join(SEED_THUMB_DIR, thumb);
     if (!existsSync(source)) {
@@ -521,13 +533,7 @@ function buildResponses(
 class SeedModule {}
 
 async function seed() {
-  const videoPath = join(UPLOAD_ROOT, 'videos', DEMO_VIDEO_FILE);
-  if (!existsSync(videoPath)) {
-    throw new Error(
-      `Demo video missing at uploads/videos/${DEMO_VIDEO_FILE}. Upload one video first, then re-run seed.`,
-    );
-  }
-  ensureDemoThumbnails();
+  ensureDemoMedia();
 
   const app = await NestFactory.createApplicationContext(SeedModule);
   const userModel = app.get<Model<User>>(getModelToken(User.name));

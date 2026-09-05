@@ -1,0 +1,9 @@
+node_modules
+dist
+coverage
+.env
+*.log
+uploads/images/*
+uploads/videos/*
+!uploads/images/.gitkeep
+!uploads/videos/.gitkeep
