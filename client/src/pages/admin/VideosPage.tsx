@@ -40,10 +40,13 @@ export default function AdminVideosPage() {
     showTableLoader,
     isError,
     error: queryError,
-  } = useAdminPagedQuery(useListVideosQuery, (nextPage) => ({
-    page: nextPage,
-    limit: PAGE_SIZE,
-  }));
+  } = useAdminPagedQuery<{ page: number; limit: number }, Video>(
+    useListVideosQuery,
+    (nextPage) => ({
+      page: nextPage,
+      limit: PAGE_SIZE,
+    }),
+  );
 
   const [setPublished, { isLoading: isUpdating }] = useSetVideoPublishedMutation();
 

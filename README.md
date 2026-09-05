@@ -247,8 +247,25 @@ npm run test:cov
 
 ## Assumptions and known limitations
 
-- Local disk uploads (`server/uploads/`) instead of S3; fine for this assessment, not production scale.
-- Editing a published lesson updates live content for learners; past answers are kept (no full content versioning). See `IMPROVEMENTS.md`.
+### Assumptions
+
+- **Admin assigns lessons.** Learners do not browse a public catalog or self-enroll. Access comes only from admin assignments.
+- **Accounts are admin-provisioned.** Learners are created in the admin UI (or seed). The app login screen is sign-in only; there is no learner self-registration flow in the product UI.
+- **Two roles only:** `admin` and `learner`, routed into separate apps after JWT login.
+- **Only published videos** can be assigned and watched. Drafts stay admin-only until published.
+- **Progress is assignment-scoped.** Resume uses `lastWatchedTimestamp`; completion expects enough watch progress plus answers to the questions that exist on the lesson at check time. Quiz answers are one-shot (no retry UI).
+- **Media is stored on local disk** (`server/uploads/`, Docker volume in Compose) for this MVP—not object storage.
+
+### Known limitations
+
+- **No content versioning for assigned lessons.** If an admin edits a published video or its questions after assignment, learners see the **current** live content. Past answers are kept; removed questions can show as unavailable on progress. There is no frozen snapshot of “what was assigned.”
+- **Register API is not productized.** `POST /api/auth/register` exists for API/Swagger use, but the UI does not expose signup, and production would typically lock role creation to admins only.
+- **Uploads are local-disk only.** No S3/presigned uploads, CDN, or video transcoding—fine for assessment scale, not production media.
+- **Video delete does not cascade assignments.** Deleting a video cleans media/questions; assignment rows tied to it are not fully productized as a soft-archive flow.
+- **No learner self-service account deletion / password reset / email verification.** Admin can create and update learners; password change is optional on edit.
+- **Short-answer grading** is exact match (case-insensitive), not fuzzy or AI-graded.
+- **Auth is JWT in `localStorage`** with a fixed expiry (default 7 days)—no refresh tokens or server-side session revoke list.
+- **Single-tenant admin.** No orgs, multi-instructor RBAC, or audit log beyond what Mongo holds for progress/answers.
 
 ## Project Structure
 
@@ -258,6 +275,5 @@ LearningPlatform/
 ├── server/               # NestJS backend (+ Dockerfile)
 │   ├── seed-assets/      # Demo video + thumbnails used by seed
 │   └── uploads/          # Runtime media (gitignored; volume in Docker)
-├── IMPROVEMENTS.md       # Deferred / future work
 └── docker-compose.yml    # MongoDB + API + web (+ seed profile)
 ```

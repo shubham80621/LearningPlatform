@@ -1,4 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
+import type { User } from '../../types';
 import AdminPageHeader from '../../components/admin/AdminPageHeader';
 import AdminSectionToolbar from '../../components/admin/AdminSectionToolbar';
 import AdminDataTable, {
@@ -29,11 +30,13 @@ export default function AdminLearnersPage() {
     total,
     showTableLoader,
     isError,
-  } = useAdminPagedQuery(useListLearnersQuery, (nextPage) => ({
-    page: nextPage,
-    limit: PAGE_SIZE,
-  }));
-
+  } = useAdminPagedQuery<{ page: number; limit: number }, User>(
+    useListLearnersQuery,
+    (nextPage) => ({
+      page: nextPage,
+      limit: PAGE_SIZE,
+    }),
+  );
   return (
     <div>
       <AdminPageHeader

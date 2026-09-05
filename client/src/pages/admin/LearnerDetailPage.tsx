@@ -148,7 +148,16 @@ export default function LearnerDetailPage() {
     total: assignTotal,
     showTableLoader: assignLoading,
     refetch: refetchAssignVideos,
-  } = useAdminPagedQuery(
+  } = useAdminPagedQuery<
+    {
+      page: number;
+      limit: number;
+      status: 'published';
+      unassignedFor: string | undefined;
+      search: string | undefined;
+    },
+    Video
+  >(
     useListVideosQuery,
     (page) => ({
       page,

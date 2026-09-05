@@ -14,9 +14,10 @@ const SKELETON_DELAY_MS = 120;
  * - Keep prior rows while the next page loads; delay skeleton so fast APIs don't flicker
  */
 export function useAdminPagedQuery<TArg, TItem>(
-  // RTK query hooks have overload signatures; keep this wrapper loosely typed.
+  // RTK query hooks have overload signatures that don't match a thin wrapper.
+  // Callers pass explicit <TArg, TItem> generics for typed `items`.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  useQuery: (arg: TArg, options?: QueryOptions) => any,
+  useQuery: any,
   buildArgs: (page: number) => TArg,
   options?: QueryOptions,
 ) {
