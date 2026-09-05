@@ -1,15 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { Video } from '../../types';
 import { getApiErrorMessage } from '../../utils/apiError';
 import { formatDuration } from '../../utils/media';
 import AdminPageHeader from '../../components/admin/AdminPageHeader';
 import AdminSectionToolbar from '../../components/admin/AdminSectionToolbar';
-import Pagination from '../../components/admin/Pagination';
 import ThumbnailImage from '../../components/ThumbnailImage';
 import ConfirmDialog from '../../components/ConfirmDialog';
-import { useAppDispatch, useAppSelector } from '../../store/hooks';
-import { setVideosPage } from '../../store/uiSlice';
+import { InfiniteScrollSentinel } from '../../components/InfiniteScrollSentinel';
 import {
   useListVideosQuery,
   useSetVideoPublishedMutation,
@@ -19,18 +17,21 @@ const PAGE_SIZE = 8;
 
 export default function AdminVideosPage() {
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
-  const page = useAppSelector((state) => state.ui.videosPage);
   const [error, setError] = useState('');
   const [pendingUnpublish, setPendingUnpublish] = useState<Video | null>(null);
+  const [page, setPage] = useState(1);
 
   const { data, isLoading, isFetching, isError, error: queryError } =
     useListVideosQuery({ page, limit: PAGE_SIZE });
   const [setPublished, { isLoading: isUpdating }] = useSetVideoPublishedMutation();
 
+  useEffect(() => {
+    if (data?.page != null && data.page > page) setPage(data.page);
+  }, [data?.page, page]);
+
   const videos = data?.items ?? [];
   const total = data?.total ?? 0;
-  // Only block the table on the first load — cached revisits render immediately.
+  const hasMore = Boolean(data && data.page < data.totalPages);
   const showInitialLoader = isLoading && !data;
 
   const publishVideo = async (video: Video) => {
@@ -58,9 +59,7 @@ export default function AdminVideosPage() {
 
   const listError =
     error ||
-    (isError
-      ? getApiErrorMessage(queryError, 'Could not load videos.')
-      : '');
+    (isError ? getApiErrorMessage(queryError, 'Could not load videos.') : '');
 
   return (
     <div>
@@ -105,11 +104,7 @@ export default function AdminVideosPage() {
           </div>
         ) : (
           <>
-            <div
-              className={`overflow-x-auto transition-opacity ${
-                isFetching && data ? 'opacity-70' : ''
-              }`}
-            >
+            <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
                 <thead className="bg-stone-50 text-stone-500">
                   <tr>
@@ -197,11 +192,15 @@ export default function AdminVideosPage() {
                 </tbody>
               </table>
             </div>
-            <Pagination
-              page={page}
-              pageSize={PAGE_SIZE}
-              total={total}
-              onPageChange={(next) => dispatch(setVideosPage(next))}
+            <p className="border-t border-stone-100 px-5 py-2 text-xs text-stone-500">
+              Showing {videos.length} of {total}
+            </p>
+            <InfiniteScrollSentinel
+              hasMore={hasMore}
+              loading={isFetching && page > 1}
+              onLoadMore={() => {
+                if (hasMore && !isFetching) setPage((current) => current + 1);
+              }}
             />
           </>
         )}

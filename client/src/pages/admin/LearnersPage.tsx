@@ -1,25 +1,28 @@
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AdminPageHeader from '../../components/admin/AdminPageHeader';
 import AdminSectionToolbar from '../../components/admin/AdminSectionToolbar';
-import Pagination from '../../components/admin/Pagination';
-import { useAppDispatch, useAppSelector } from '../../store/hooks';
-import { setLearnersPage } from '../../store/uiSlice';
+import { InfiniteScrollSentinel } from '../../components/InfiniteScrollSentinel';
 import { useListLearnersQuery } from '../../store/api';
 
 const PAGE_SIZE = 8;
 
 export default function AdminLearnersPage() {
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
-  const page = useAppSelector((state) => state.ui.learnersPage);
+  const [page, setPage] = useState(1);
 
   const { data, isLoading, isFetching, isError } = useListLearnersQuery({
     page,
     limit: PAGE_SIZE,
   });
 
+  useEffect(() => {
+    if (data?.page != null && data.page > page) setPage(data.page);
+  }, [data?.page, page]);
+
   const learners = data?.items ?? [];
   const total = data?.total ?? 0;
+  const hasMore = Boolean(data && data.page < data.totalPages);
   const showInitialLoader = isLoading && !data;
 
   return (
@@ -65,11 +68,7 @@ export default function AdminLearnersPage() {
           </div>
         ) : (
           <>
-            <div
-              className={`overflow-x-auto transition-opacity ${
-                isFetching && data ? 'opacity-70' : ''
-              }`}
-            >
+            <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
                 <thead className="bg-stone-50 text-stone-500">
                   <tr>
@@ -124,11 +123,15 @@ export default function AdminLearnersPage() {
                 </tbody>
               </table>
             </div>
-            <Pagination
-              page={page}
-              pageSize={PAGE_SIZE}
-              total={total}
-              onPageChange={(next) => dispatch(setLearnersPage(next))}
+            <p className="border-t border-stone-100 px-5 py-2 text-xs text-stone-500">
+              Showing {learners.length} of {total}
+            </p>
+            <InfiniteScrollSentinel
+              hasMore={hasMore}
+              loading={isFetching && page > 1}
+              onLoadMore={() => {
+                if (hasMore && !isFetching) setPage((current) => current + 1);
+              }}
             />
           </>
         )}

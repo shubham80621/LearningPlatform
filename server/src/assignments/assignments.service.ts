@@ -6,7 +6,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model, PipelineStage, Types } from 'mongoose';
+import {
+  paginated,
+  resolvePagination,
+  toSearchPattern,
+} from '../common/pagination';
 import {
   Question,
   QuestionDocument,
@@ -16,6 +21,10 @@ import { toPublicMediaUrl } from '../uploads/upload.constants';
 import { User, UserDocument, UserRole } from '../users/schemas/user.schema';
 import { Video, VideoDocument } from '../videos/schemas/video.schema';
 import { CreateAssignmentsDto } from './dto/create-assignments.dto';
+import {
+  ListMyAssignmentsQueryDto,
+  MyAssignmentStatusFilter,
+} from './dto/list-my-assignments-query.dto';
 import { SubmitAnswerDto } from './dto/submit-answer.dto';
 import { UpdateProgressDto } from './dto/update-progress.dto';
 import {
@@ -23,6 +32,10 @@ import {
   AssignmentDocument,
   AssignmentStatus,
 } from './schemas/assignment.schema';
+
+type AssignmentWithVideo = AssignmentDocument & {
+  video: VideoDocument;
+};
 
 @Injectable()
 export class AssignmentsService {
@@ -104,60 +117,235 @@ export class AssignmentsService {
   }
 
   /** Learner home feed: published assigned videos only, no answer keys. */
-  async findMine(learnerId: string) {
-    const { assignments, videoMap, questionsByVideo } =
-      await this.loadLearnerAssignments(learnerId);
+  async findMine(learnerId: string, query: ListMyAssignmentsQueryDto = {}) {
+    await this.assertLearner(learnerId);
+    const { page, limit, skip } = resolvePagination(query);
+    const pipeline = this.buildMinePipeline(learnerId, query);
 
-    return assignments
-      .map((assignment) => {
-        const video = videoMap.get(assignment.videoId.toString());
-        if (!video?.isPublished) return null;
-        const questions =
-          questionsByVideo.get(assignment.videoId.toString()) ?? [];
-        const questionIds = new Set(
-          questions.map((question) => question._id.toString()),
-        );
-        const matchedResponses = (assignment.responses ?? []).filter((response) =>
-          questionIds.has(response.questionId.toString()),
-        );
-        const answered = matchedResponses.length;
-        const correct = matchedResponses.filter(
-          (response) => response.isCorrect === true,
-        ).length;
-        const incorrect = matchedResponses.filter(
-          (response) => response.isCorrect === false,
-        ).length;
-        const totalQuestions = questions.length;
-        const unanswered = Math.max(totalQuestions - answered, 0);
+    const [facet] = await this.assignmentModel
+      .aggregate<{
+        items: AssignmentWithVideo[];
+        total: Array<{ count: number }>;
+      }>([
+        ...pipeline,
+        {
+          $facet: {
+            items: [
+              { $sort: { createdAt: -1, _id: -1 } },
+              { $skip: skip },
+              { $limit: limit },
+            ],
+            total: [{ $count: 'count' }],
+          },
+        },
+      ])
+      .exec();
 
-        return {
-          id: assignment._id.toString(),
-          videoId: assignment.videoId.toString(),
-          status: assignment.status,
-          lastWatchedTimestamp: assignment.lastWatchedTimestamp,
-          completionPercentage: assignment.completionPercentage,
-          completedAt: assignment.completedAt ?? null,
-          questionCount: totalQuestions,
-          answeredCount: answered,
-          stats: {
-            totalQuestions,
-            answered,
-            unanswered,
-            correct,
-            incorrect,
-          },
-          createdAt: (assignment as AssignmentDocument & { createdAt?: Date })
-            .createdAt,
-          video: {
-            id: video._id.toString(),
-            title: video.title,
-            description: video.description,
-            thumbnailUrl: toPublicMediaUrl(video.thumbnailUrl),
-            duration: video.duration,
-          },
-        };
-      })
-      .filter((item): item is NonNullable<typeof item> => item !== null);
+    const rows = facet?.items ?? [];
+    const total = facet?.total?.[0]?.count ?? 0;
+    const questionsByVideo = await this.loadQuestionsForVideos(
+      rows.map((row) => row.videoId),
+    );
+
+    return paginated(
+      rows.map((row) => this.toLearnerFeedItem(row, questionsByVideo)),
+      total,
+      page,
+      limit,
+    );
+  }
+
+  /** Aggregates across every published assignment — used by the learner dashboard. */
+  async getMineSummary(learnerId: string) {
+    await this.assertLearner(learnerId);
+    const rows = await this.assignmentModel
+      .aggregate<AssignmentWithVideo>([
+        ...this.buildMinePipeline(learnerId, {}),
+        { $sort: { createdAt: -1, _id: -1 } },
+      ])
+      .exec();
+
+    const questionsByVideo = await this.loadQuestionsForVideos(
+      rows.map((row) => row.videoId),
+    );
+
+    const summary = {
+      videos: 0,
+      videosCompleted: 0,
+      videosInProgress: 0,
+      videosAssigned: 0,
+      watchSum: 0,
+      avgWatchPercent: 0,
+      totalQuestions: 0,
+      answered: 0,
+      correct: 0,
+      incorrect: 0,
+      unanswered: 0,
+    };
+
+    for (const row of rows) {
+      const item = this.toLearnerFeedItem(row, questionsByVideo);
+      summary.videos += 1;
+      summary.watchSum += item.completionPercentage ?? 0;
+      if (item.status === AssignmentStatus.COMPLETED) {
+        summary.videosCompleted += 1;
+      } else if (item.status === AssignmentStatus.IN_PROGRESS) {
+        summary.videosInProgress += 1;
+      } else {
+        summary.videosAssigned += 1;
+      }
+      summary.totalQuestions += item.stats.totalQuestions;
+      summary.answered += item.stats.answered;
+      summary.correct += item.stats.correct;
+      summary.incorrect += item.stats.incorrect;
+      summary.unanswered += item.stats.unanswered;
+    }
+
+    summary.avgWatchPercent =
+      summary.videos === 0
+        ? 0
+        : Math.round(summary.watchSum / summary.videos);
+
+    return summary;
+  }
+
+  private async assertLearner(learnerId: string) {
+    const learner = await this.userModel
+      .findOne({ _id: learnerId, role: UserRole.LEARNER })
+      .exec();
+    if (!learner) {
+      throw new NotFoundException('Learner not found');
+    }
+    return learner;
+  }
+
+  private buildMinePipeline(
+    learnerId: string,
+    query: ListMyAssignmentsQueryDto,
+  ): PipelineStage[] {
+    const pipeline: PipelineStage[] = [
+      { $match: { learnerId: new Types.ObjectId(learnerId) } },
+      {
+        $lookup: {
+          from: this.videoModel.collection.name,
+          localField: 'videoId',
+          foreignField: '_id',
+          as: 'video',
+        },
+      },
+      { $unwind: '$video' },
+      { $match: { 'video.isPublished': true } },
+    ];
+
+    const status = query.status ?? MyAssignmentStatusFilter.ALL;
+    if (status === MyAssignmentStatusFilter.ASSIGNED) {
+      pipeline.push({
+        $match: {
+          status: AssignmentStatus.ASSIGNED,
+          completionPercentage: { $lte: 0 },
+        },
+      });
+    } else if (status === MyAssignmentStatusFilter.IN_PROGRESS) {
+      pipeline.push({ $match: { status: AssignmentStatus.IN_PROGRESS } });
+    } else if (status === MyAssignmentStatusFilter.COMPLETED) {
+      pipeline.push({ $match: { status: AssignmentStatus.COMPLETED } });
+    } else if (status === MyAssignmentStatusFilter.CONTINUE) {
+      pipeline.push({
+        $match: {
+          status: { $ne: AssignmentStatus.COMPLETED },
+          $or: [
+            { status: AssignmentStatus.IN_PROGRESS },
+            { completionPercentage: { $gt: 0 } },
+          ],
+        },
+      });
+    }
+
+    const search = query.search?.trim();
+    if (search) {
+      const pattern = toSearchPattern(search);
+      pipeline.push({
+        $match: {
+          $or: [
+            { 'video.title': pattern },
+            { 'video.description': pattern },
+          ],
+        },
+      });
+    }
+
+    return pipeline;
+  }
+
+  private async loadQuestionsForVideos(videoIds: Types.ObjectId[]) {
+    const unique = [
+      ...new Map(
+        videoIds.map((id) => [id.toString(), new Types.ObjectId(id)] as const),
+      ).values(),
+    ];
+    const questionsByVideo = new Map<string, QuestionDocument[]>();
+    if (unique.length === 0) return questionsByVideo;
+
+    const questions = await this.questionModel
+      .find({ videoId: { $in: unique } })
+      .sort({ timestamp: 1 })
+      .exec();
+
+    for (const question of questions) {
+      const key = question.videoId.toString();
+      const list = questionsByVideo.get(key) ?? [];
+      list.push(question);
+      questionsByVideo.set(key, list);
+    }
+    return questionsByVideo;
+  }
+
+  private toLearnerFeedItem(
+    row: AssignmentWithVideo,
+    questionsByVideo: Map<string, QuestionDocument[]>,
+  ) {
+    const video = row.video;
+    const questions = questionsByVideo.get(row.videoId.toString()) ?? [];
+    const questionIds = new Set(
+      questions.map((question) => question._id.toString()),
+    );
+    const matchedResponses = (row.responses ?? []).filter((response) =>
+      questionIds.has(response.questionId.toString()),
+    );
+    const answered = matchedResponses.length;
+    const correct = matchedResponses.filter(
+      (response) => response.isCorrect === true,
+    ).length;
+    const incorrect = matchedResponses.filter(
+      (response) => response.isCorrect === false,
+    ).length;
+    const totalQuestions = questions.length;
+
+    return {
+      id: row._id.toString(),
+      videoId: row.videoId.toString(),
+      status: row.status,
+      lastWatchedTimestamp: row.lastWatchedTimestamp,
+      completionPercentage: row.completionPercentage,
+      completedAt: row.completedAt ?? null,
+      questionCount: totalQuestions,
+      answeredCount: answered,
+      stats: {
+        totalQuestions,
+        answered,
+        unanswered: Math.max(totalQuestions - answered, 0),
+        correct,
+        incorrect,
+      },
+      createdAt: (row as AssignmentWithVideo & { createdAt?: Date }).createdAt,
+      video: {
+        id: video._id.toString(),
+        title: video.title,
+        description: video.description,
+        thumbnailUrl: toPublicMediaUrl(video.thumbnailUrl),
+        duration: video.duration,
+      },
+    };
   }
 
   private async loadLearnerAssignments(learnerId: string) {

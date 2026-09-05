@@ -2,14 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   getMyAssignment,
-  listMyAssignments,
   saveMyProgress,
   submitMyAnswer,
 } from '../../api/assignments';
 import ThumbnailImage from '../../components/ThumbnailImage';
 import AssignmentStatusBadge from '../../components/AssignmentStatusBadge';
 import type {
-  LearnerAssignment,
   LearnerWatchQuestion,
   LearnerWatchSession,
 } from '../../types';
@@ -21,12 +19,18 @@ import {
   readBufferedProgress,
   writeBufferedProgress,
 } from '../../utils/watchProgress';
+import { InfiniteScrollSentinel } from '../../components/InfiniteScrollSentinel';
+import { useListMyAssignmentsQuery } from '../../store/api';
+import { useAppDispatch } from '../../store/hooks';
+import { invalidateMyAssignments } from '../../store/invalidate';
 
 /** Min gap between normal event flushes (pause/seek/etc.). Close always bypasses. */
 const PROGRESS_EVENT_THROTTLE_MS = 5000;
+const PLAYLIST_PAGE_SIZE = 8;
 
 export default function LearnerWatchPage() {
   const { assignmentId } = useParams();
+  const dispatch = useAppDispatch();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const lastFlushedAt = useRef(0);
   const lastFlushedSeconds = useRef(-1);
@@ -39,7 +43,6 @@ export default function LearnerWatchPage() {
   assignmentIdRef.current = assignmentId;
 
   const [session, setSession] = useState<LearnerWatchSession | null>(null);
-  const [playlist, setPlaylist] = useState<LearnerAssignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeQuestion, setActiveQuestion] = useState<LearnerWatchQuestion | null>(
@@ -59,6 +62,40 @@ export default function LearnerWatchPage() {
   const [playlistFilter, setPlaylistFilter] = useState<
     'all' | 'in_progress' | 'not_started' | 'completed'
   >('all');
+  const [playlistPage, setPlaylistPage] = useState(1);
+  const [playlistRoot, setPlaylistRoot] = useState<Element | null>(null);
+
+  const playlistStatus =
+    playlistFilter === 'completed'
+      ? ('completed' as const)
+      : playlistFilter === 'not_started'
+        ? ('assigned' as const)
+        : playlistFilter === 'in_progress'
+          ? ('continue' as const)
+          : ('all' as const);
+
+  useEffect(() => {
+    setPlaylistPage(1);
+  }, [playlistFilter]);
+
+  const playlistQuery = useListMyAssignmentsQuery({
+    page: playlistPage,
+    limit: PLAYLIST_PAGE_SIZE,
+    status: playlistStatus,
+  });
+
+  useEffect(() => {
+    if (playlistQuery.data?.page != null && playlistQuery.data.page > playlistPage) {
+      setPlaylistPage(playlistQuery.data.page);
+    }
+  }, [playlistQuery.data?.page, playlistPage]);
+
+  const playlist = playlistQuery.data?.items ?? [];
+  const playlistTotal = playlistQuery.data?.total ?? 0;
+  const playlistHasMore = Boolean(
+    playlistQuery.data &&
+      playlistQuery.data.page < playlistQuery.data.totalPages,
+  );
 
   useEffect(() => {
     if (!assignmentId) return;
@@ -75,11 +112,10 @@ export default function LearnerWatchPage() {
     setFeedback(null);
     setAnswerPhase('idle');
 
-    Promise.all([getMyAssignment(assignmentId), listMyAssignments()])
-      .then(([data, feed]) => {
+    getMyAssignment(assignmentId)
+      .then((data) => {
         if (!active) return;
         setSession(data);
-        setPlaylist(feed);
         latestSeconds.current = data.lastWatchedTimestamp || 0;
         lastFlushedSeconds.current = data.lastWatchedTimestamp || 0;
         for (const question of data.questions) {
@@ -175,20 +211,7 @@ export default function LearnerWatchPage() {
               }
             : current,
         );
-        setPlaylist((current) =>
-          current.map((item) =>
-            item.id === assignmentId
-              ? {
-                  ...item,
-                  status: updated.status as LearnerAssignment['status'],
-                  lastWatchedTimestamp: updated.lastWatchedTimestamp,
-                  completionPercentage: updated.completionPercentage,
-                  completedAt:
-                    updated.completedAt ?? item.completedAt ?? null,
-                }
-              : item,
-          ),
-        );
+        invalidateMyAssignments(dispatch);
       } catch {
         dirtyRef.current = true;
         writeBufferedProgress(assignmentId, seconds);
@@ -196,7 +219,7 @@ export default function LearnerWatchPage() {
         setSaving(false);
       }
     },
-    [assignmentId, noteLocalProgress],
+    [assignmentId, dispatch, noteLocalProgress],
   );
 
   // Tab/browser close or background: best-effort keepalive flush (bypasses 5s throttle).
@@ -391,21 +414,7 @@ export default function LearnerWatchPage() {
       }
 
       setSession(next);
-      setPlaylist((current) =>
-        current.map((item) =>
-          item.id === assignmentId
-            ? {
-                ...item,
-                status: next.status,
-                completionPercentage: next.completionPercentage,
-                completedAt: next.completedAt ?? item.completedAt ?? null,
-                answeredCount: next.stats.answered,
-                questionCount: next.stats.totalQuestions,
-                stats: next.stats,
-              }
-            : item,
-        ),
-      );
+      invalidateMyAssignments(dispatch);
       const updated = next.questions.find((item) => item.id === activeQuestion.id);
       if (updated) {
         setActiveQuestion(updated);
@@ -489,18 +498,7 @@ export default function LearnerWatchPage() {
   const answeredCount = session.stats.answered;
   const totalQuestions = session.stats.totalQuestions;
 
-  const filteredPlaylist = playlist.filter((item) => {
-    if (playlistFilter === 'all') return true;
-    if (playlistFilter === 'completed') return item.status === 'completed';
-    if (playlistFilter === 'in_progress') {
-      return (
-        item.status === 'in_progress' ||
-        (item.status !== 'completed' && item.completionPercentage > 0)
-      );
-    }
-    return item.status === 'assigned' && item.completionPercentage === 0;
-  });
-
+  const filteredPlaylist = playlist;
   return (
     <div className="mx-auto w-full max-w-[1800px] px-3 py-3 sm:px-4 lg:px-6 lg:py-4">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_402px] lg:items-start lg:gap-6">
@@ -742,7 +740,10 @@ export default function LearnerWatchPage() {
         </div>
 
         {/* RIGHT — related/playlist only (YouTube suggestions column) */}
-        <aside className="min-w-0 lg:sticky lg:top-16 lg:max-h-[calc(100vh-4.5rem)] lg:overflow-y-auto lg:pr-1">
+        <aside
+          ref={setPlaylistRoot}
+          className="min-w-0 lg:sticky lg:top-16 lg:max-h-[calc(100vh-4.5rem)] lg:overflow-y-auto lg:pr-1"
+        >
           <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
             {(
               [
@@ -768,7 +769,11 @@ export default function LearnerWatchPage() {
           </div>
 
           <ul className="space-y-2">
-            {filteredPlaylist.length === 0 ? (
+            {playlistQuery.isLoading && !playlistQuery.data ? (
+              <li className="py-6 text-center text-sm text-stone-500">
+                Loading playlist…
+              </li>
+            ) : filteredPlaylist.length === 0 ? (
               <li className="py-6 text-center text-sm text-stone-500">
                 No lessons in this filter.
               </li>
@@ -830,6 +835,21 @@ export default function LearnerWatchPage() {
               })
             )}
           </ul>
+          {playlistTotal > 0 && (
+            <p className="mt-2 text-center text-xs text-stone-500">
+              Showing {playlist.length} of {playlistTotal}
+            </p>
+          )}
+          <InfiniteScrollSentinel
+            hasMore={playlistHasMore}
+            loading={playlistQuery.isFetching && playlistPage > 1}
+            root={playlistRoot}
+            onLoadMore={() => {
+              if (playlistHasMore && !playlistQuery.isFetching) {
+                setPlaylistPage((current) => current + 1);
+              }
+            }}
+          />
         </aside>
       </div>
     </div>

@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Request,
   UseGuards,
 } from '@nestjs/common';
@@ -16,6 +17,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { UserRole } from '../users/schemas/user.schema';
 import { AssignmentsService } from './assignments.service';
 import { CreateAssignmentsDto } from './dto/create-assignments.dto';
+import { ListMyAssignmentsQueryDto } from './dto/list-my-assignments-query.dto';
 import { SubmitAnswerDto } from './dto/submit-answer.dto';
 import { UpdateProgressDto } from './dto/update-progress.dto';
 
@@ -41,9 +43,25 @@ export class AssignmentsController {
 
   @Get('me')
   @Roles(UserRole.LEARNER)
-  @ApiOperation({ summary: 'List my assigned videos (learner home feed)' })
-  listMine(@Request() req: AuthRequest) {
-    return this.assignmentsService.findMine(req.user.userId);
+  @ApiOperation({
+    summary: 'List my assigned videos, paginated (learner)',
+    description:
+      'Returns { items, total, page, limit, totalPages }. Supports search and status filters.',
+  })
+  listMine(
+    @Request() req: AuthRequest,
+    @Query() query: ListMyAssignmentsQueryDto,
+  ) {
+    return this.assignmentsService.findMine(req.user.userId, query);
+  }
+
+  @Get('me/summary')
+  @Roles(UserRole.LEARNER)
+  @ApiOperation({
+    summary: 'Progress totals across all my assignments (learner dashboard)',
+  })
+  mySummary(@Request() req: AuthRequest) {
+    return this.assignmentsService.getMineSummary(req.user.userId);
   }
 
   @Get('me/:id')

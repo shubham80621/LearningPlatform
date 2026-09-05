@@ -1,7 +1,19 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-import type { Paginated, User, Video } from '../types';
+import type {
+  LearnerAssignment,
+  LearnerProgressSummary,
+  Paginated,
+  User,
+  Video,
+} from '../types';
+import type { ListMyAssignmentsParams } from '../api/assignments';
 import type { ListVideosParams } from '../api/videos';
 import type { ListLearnersParams } from '../api/users';
+import {
+  infiniteForceRefetch,
+  infiniteMerge,
+  infiniteSerializeArgs,
+} from '../hooks/infiniteQuery';
 
 const baseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:3000/api').replace(
   /\/$/,
@@ -10,10 +22,8 @@ const baseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:3000/api').re
 
 /**
  * Server-state cache (RTK Query).
- * - Same-arg in-flight requests are deduped (no StrictMode double network call).
- * - keepUnusedDataFor keeps list pages warm after navigate-away.
- * - refetchOnMountOrArgChange: false → returning to a cached page shows data instantly.
- *   Dashboard overrides this for a silent background refresh.
+ * List endpoints merge pages into one cache entry (infinite scroll).
+ * Dashboard uses refetchOnMountOrArgChange for a silent background refresh.
  */
 export const api = createApi({
   reducerPath: 'api',
@@ -25,7 +35,7 @@ export const api = createApi({
       return headers;
     },
   }),
-  tagTypes: ['VideoList', 'LearnerList'],
+  tagTypes: ['VideoList', 'LearnerList', 'MyAssignmentList', 'MyProgressSummary'],
   keepUnusedDataFor: 300,
   refetchOnMountOrArgChange: false,
   refetchOnFocus: false,
@@ -45,6 +55,9 @@ export const api = createApi({
           },
         };
       },
+      serializeQueryArgs: infiniteSerializeArgs,
+      merge: infiniteMerge,
+      forceRefetch: infiniteForceRefetch,
       providesTags: [{ type: 'VideoList', id: 'LIST' }],
     }),
 
@@ -61,7 +74,38 @@ export const api = createApi({
           },
         };
       },
+      serializeQueryArgs: infiniteSerializeArgs,
+      merge: infiniteMerge,
+      forceRefetch: infiniteForceRefetch,
       providesTags: [{ type: 'LearnerList', id: 'LIST' }],
+    }),
+
+    listMyAssignments: builder.query<
+      Paginated<LearnerAssignment>,
+      ListMyAssignmentsParams | void
+    >({
+      query: (arg) => {
+        const params = arg ?? {};
+        const search = params.search?.trim();
+        return {
+          url: '/assignments/me',
+          params: {
+            page: params.page,
+            limit: params.limit,
+            status: params.status === 'all' ? undefined : params.status,
+            search: search || undefined,
+          },
+        };
+      },
+      serializeQueryArgs: infiniteSerializeArgs,
+      merge: infiniteMerge,
+      forceRefetch: infiniteForceRefetch,
+      providesTags: [{ type: 'MyAssignmentList', id: 'LIST' }],
+    }),
+
+    myProgressSummary: builder.query<LearnerProgressSummary, void>({
+      query: () => '/assignments/me/summary',
+      providesTags: [{ type: 'MyProgressSummary', id: 'SUMMARY' }],
     }),
 
     setVideoPublished: builder.mutation<
@@ -97,5 +141,7 @@ export const api = createApi({
 export const {
   useListVideosQuery,
   useListLearnersQuery,
+  useListMyAssignmentsQuery,
+  useMyProgressSummaryQuery,
   useSetVideoPublishedMutation,
 } = api;

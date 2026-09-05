@@ -1,29 +1,25 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 
 type UiState = {
-  /** Last videos-list page so edit → back lands on the same page. */
-  videosPage: number;
-  /** Last learners-list page. */
-  learnersPage: number;
+  learnerLearnStatus: 'all' | 'continue' | 'assigned' | 'completed';
 };
 
 const initialState: UiState = {
-  videosPage: 1,
-  learnersPage: 1,
+  learnerLearnStatus: 'all',
 };
 
 const uiSlice = createSlice({
   name: 'ui',
   initialState,
   reducers: {
-    setVideosPage(state, action: PayloadAction<number>) {
-      state.videosPage = Math.max(1, action.payload);
-    },
-    setLearnersPage(state, action: PayloadAction<number>) {
-      state.learnersPage = Math.max(1, action.payload);
+    setLearnerLearnStatus(
+      state,
+      action: PayloadAction<UiState['learnerLearnStatus']>,
+    ) {
+      state.learnerLearnStatus = action.payload;
     },
   },
 });
 
-export const { setVideosPage, setLearnersPage } = uiSlice.actions;
+export const { setLearnerLearnStatus } = uiSlice.actions;
 export default uiSlice.reducer;

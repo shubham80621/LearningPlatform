@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { listMyAssignments } from '../../api/assignments';
 import DonutChart from '../../components/DonutChart';
 import ThumbnailImage from '../../components/ThumbnailImage';
 import AssignmentStatusBadge from '../../components/AssignmentStatusBadge';
@@ -8,89 +7,75 @@ import { useAuth } from '../../contexts/AuthContext';
 import type { LearnerAssignment } from '../../types';
 import { getApiErrorMessage } from '../../utils/apiError';
 import { formatDuration } from '../../utils/media';
+import { InfiniteScrollSentinel } from '../../components/InfiniteScrollSentinel';
+import {
+  useListMyAssignmentsQuery,
+  useMyProgressSummaryQuery,
+} from '../../store/api';
+
+const PAGE_SIZE = 8;
+const silentRefresh = { refetchOnMountOrArgChange: true as const };
 
 export default function LearnerDashboardPage() {
   const { user } = useAuth();
-  const [assignments, setAssignments] = useState<LearnerAssignment[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [query, setQuery] = useState('');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
-    let active = true;
-
-    listMyAssignments()
-      .then((data) => {
-        if (!active) return;
-        setAssignments(data);
-      })
-      .catch((err) => {
-        if (active) {
-          setError(getApiErrorMessage(err, 'Could not load your videos.'));
-        }
-      })
-      .finally(() => {
-        if (active) setLoading(false);
+    const timer = setTimeout(() => {
+      const next = query.trim();
+      setSearch((prev) => {
+        if (prev !== next) setPage(1);
+        return next;
       });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [query]);
 
-    return () => {
-      active = false;
-    };
-  }, []);
+  const summaryQuery = useMyProgressSummaryQuery(undefined, silentRefresh);
+  const listQuery = useListMyAssignmentsQuery({
+    page,
+    limit: PAGE_SIZE,
+    search: search || undefined,
+  });
 
-  const progressTotals = useMemo(() => {
-    return assignments.reduce(
-      (acc, item) => {
-        const stats = item.stats ?? {
-          totalQuestions: item.questionCount ?? 0,
-          answered: item.answeredCount ?? 0,
-          unanswered: Math.max((item.questionCount ?? 0) - (item.answeredCount ?? 0), 0),
-          correct: 0,
-          incorrect: 0,
-        };
-        acc.videos += 1;
-        if (item.status === 'completed') acc.videosCompleted += 1;
-        else if (item.status === 'in_progress') acc.videosInProgress += 1;
-        else acc.videosAssigned += 1;
-        acc.watchSum += item.completionPercentage ?? 0;
-        acc.totalQuestions += stats.totalQuestions;
-        acc.answered += stats.answered;
-        acc.correct += stats.correct;
-        acc.incorrect += stats.incorrect;
-        acc.unanswered += stats.unanswered;
-        return acc;
-      },
-      {
-        videos: 0,
-        videosCompleted: 0,
-        videosInProgress: 0,
-        videosAssigned: 0,
-        watchSum: 0,
-        totalQuestions: 0,
-        answered: 0,
-        correct: 0,
-        incorrect: 0,
-        unanswered: 0,
-      },
-    );
-  }, [assignments]);
+  useEffect(() => {
+    if (listQuery.data?.page != null && listQuery.data.page > page) {
+      setPage(listQuery.data.page);
+    }
+  }, [listQuery.data?.page, page]);
 
-  const avgWatchPercent =
-    progressTotals.videos === 0
-      ? 0
-      : Math.round(progressTotals.watchSum / progressTotals.videos);
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return assignments;
-    return assignments.filter((item) => {
-      const title = item.video?.title?.toLowerCase() ?? '';
-      const description = item.video?.description?.toLowerCase() ?? '';
-      return title.includes(q) || description.includes(q);
-    });
-  }, [assignments, query]);
+  const summary = summaryQuery.data;
+  const assignments = listQuery.data?.items ?? [];
+  const total = listQuery.data?.total ?? 0;
+  const hasMore = Boolean(
+    listQuery.data && listQuery.data.page < listQuery.data.totalPages,
+  );
+  const showInitialLoader =
+    (summaryQuery.isLoading && !summaryQuery.data) ||
+    (listQuery.isLoading && !listQuery.data);
+  const error =
+    summaryQuery.isError || listQuery.isError
+      ? getApiErrorMessage(
+          summaryQuery.error ?? listQuery.error,
+          'Could not load your videos.',
+        )
+      : '';
 
   const firstName = user?.name?.trim().split(/\s+/)[0] || 'there';
+  const avgWatchPercent = summary?.avgWatchPercent ?? 0;
+  const progressTotals = summary ?? {
+    videos: 0,
+    videosCompleted: 0,
+    videosInProgress: 0,
+    videosAssigned: 0,
+    totalQuestions: 0,
+    answered: 0,
+    correct: 0,
+    incorrect: 0,
+    unanswered: 0,
+  };
 
   return (
     <div className="mx-auto w-full max-w-[1400px]">
@@ -103,13 +88,13 @@ export default function LearnerDashboardPage() {
         </p>
       </div>
 
-      {error && (
+      {error && !summary && assignments.length === 0 && (
         <p className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </p>
       )}
 
-      {loading ? (
+      {showInitialLoader ? (
         <div className="space-y-6">
           <div className="grid animate-pulse gap-4 lg:grid-cols-2">
             <div className="h-56 rounded-xl bg-stone-100" />
@@ -127,7 +112,6 @@ export default function LearnerDashboardPage() {
         </div>
       ) : (
         <div className="space-y-8">
-          {/* Progress — same idea as admin learner progress */}
           <section className="space-y-4">
             <div>
               <h2 className="text-base font-semibold text-ink sm:text-lg">Your progress</h2>
@@ -136,7 +120,7 @@ export default function LearnerDashboardPage() {
               </p>
             </div>
 
-            {assignments.length === 0 ? (
+            {progressTotals.videos === 0 ? (
               <div className="rounded-2xl border border-dashed border-stone-200 px-5 py-10 text-center">
                 <p className="text-base font-medium text-ink">No videos assigned yet</p>
                 <p className="mt-2 text-sm text-stone-500">
@@ -251,8 +235,7 @@ export default function LearnerDashboardPage() {
             )}
           </section>
 
-          {/* Videos — YouTube-style grid */}
-          {assignments.length > 0 && (
+          {progressTotals.videos > 0 && (
             <section>
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
@@ -283,17 +266,31 @@ export default function LearnerDashboardPage() {
                 </label>
               </div>
 
-              {filtered.length === 0 ? (
+              {total === 0 && search ? (
                 <div className="rounded-2xl border border-dashed border-stone-200 px-5 py-12 text-center">
                   <p className="text-sm text-stone-500">
-                    No videos match “{query.trim()}”.
+                    No videos match “{search}”.
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {filtered.map((item) => (
-                    <VideoCard key={item.id} item={item} />
-                  ))}
+                <div>
+                  <div className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {assignments.map((item) => (
+                      <VideoCard key={item.id} item={item} />
+                    ))}
+                  </div>
+                  <p className="mt-4 text-center text-xs text-stone-500">
+                    Showing {assignments.length} of {total}
+                  </p>
+                  <InfiniteScrollSentinel
+                    hasMore={hasMore}
+                    loading={listQuery.isFetching && page > 1}
+                    onLoadMore={() => {
+                      if (hasMore && !listQuery.isFetching) {
+                        setPage((current) => current + 1);
+                      }
+                    }}
+                  />
                 </div>
               )}
             </section>

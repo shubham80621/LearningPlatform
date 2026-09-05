@@ -22,10 +22,12 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { UserRole } from '../users/schemas/user.schema';
+import { throttlerLimits } from '../common/throttler.config';
 import { createLessonMediaMulterOptions } from '../uploads/multer.config';
 import { UploadExceptionFilter } from '../uploads/upload-exception.filter';
 import { MAX_IMAGE_SIZE_BYTES } from '../uploads/upload.constants';
@@ -33,6 +35,8 @@ import { CreateVideoDto } from './dto/create-video.dto';
 import { ListVideosQueryDto } from './dto/list-videos-query.dto';
 import { UpdateVideoDto } from './dto/update-video.dto';
 import { VideosService } from './videos.service';
+
+const { ttl, uploadLimit } = throttlerLimits();
 
 type AuthRequest = {
   user: { userId: string; email: string; role: string; name: string };
@@ -63,6 +67,7 @@ export class VideosController {
 
   @Post()
   @Roles(UserRole.ADMIN)
+  @Throttle({ default: { limit: uploadLimit, ttl } })
   @ApiOperation({
     summary: 'Create a video by uploading the thumbnail and video files together.',
   })
@@ -123,6 +128,7 @@ export class VideosController {
 
   @Patch(':id')
   @Roles(UserRole.ADMIN)
+  @Throttle({ default: { limit: uploadLimit, ttl } })
   @ApiOperation({ summary: 'Update video details and optionally replace media files' })
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(

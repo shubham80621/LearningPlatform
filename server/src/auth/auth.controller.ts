@@ -1,9 +1,13 @@
 import { Body, Controller, Get, Post, Request, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { throttlerLimits } from '../common/throttler.config';
+
+const { ttl, authLimit } = throttlerLimits();
 
 @ApiTags('auth')
 @Controller('auth')
@@ -11,12 +15,16 @@ export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Post('register')
-  @ApiOperation({ summary: 'Register a new user (learners; prefer admin-created learners)' })
+  @Throttle({ default: { limit: authLimit, ttl } })
+  @ApiOperation({
+    summary: 'Register a new user (learners; prefer admin-created learners)',
+  })
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
 
   @Post('login')
+  @Throttle({ default: { limit: authLimit, ttl } })
   @ApiOperation({ summary: 'Login and receive a JWT' })
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
@@ -26,7 +34,10 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Get('me')
   @ApiOperation({ summary: 'Get the current authenticated user' })
-  me(@Request() req: { user: { userId: string; email: string; role: string; name: string } }) {
+  me(
+    @Request()
+    req: { user: { userId: string; email: string; role: string; name: string } },
+  ) {
     return {
       id: req.user.userId,
       name: req.user.name,

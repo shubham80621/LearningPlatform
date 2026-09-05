@@ -10,3 +10,13 @@ export function invalidateVideoLists(dispatch: AppDispatch) {
 export function invalidateLearnerLists(dispatch: AppDispatch) {
   dispatch(api.util.invalidateTags([{ type: 'LearnerList', id: 'LIST' }]));
 }
+
+/** Call after watch progress / quiz answers so learner home soft-refreshes. */
+export function invalidateMyAssignments(dispatch: AppDispatch) {
+  dispatch(
+    api.util.invalidateTags([
+      { type: 'MyAssignmentList', id: 'LIST' },
+      { type: 'MyProgressSummary', id: 'SUMMARY' },
+    ]),
+  );
+}

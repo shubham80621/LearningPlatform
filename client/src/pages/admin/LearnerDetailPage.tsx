@@ -14,19 +14,18 @@ import AdminPageHeader from '../../components/admin/AdminPageHeader';
 import AdminSectionToolbar from '../../components/admin/AdminSectionToolbar';
 import DonutChart from '../../components/DonutChart';
 import AssignmentStatusBadge from '../../components/AssignmentStatusBadge';
-import Pagination from '../../components/admin/Pagination';
 import VideoPreviewDialog from '../../components/admin/VideoPreviewDialog';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import TextField from '../../components/form/TextField';
 import PasswordField from '../../components/form/PasswordField';
 import { fieldClassName } from '../../components/form/fieldStyles';
 import ThumbnailImage from '../../components/ThumbnailImage';
+import { InfiniteScrollSentinel } from '../../components/InfiniteScrollSentinel';
 import { useListVideosQuery } from '../../store/api';
 import { useAppDispatch } from '../../store/hooks';
 import { invalidateLearnerLists } from '../../store/invalidate';
 
 const ASSIGN_PAGE_SIZE = 6;
-const PROGRESS_PAGE_SIZE = 5;
 
 type LearnerTab = 'info' | 'assign' | 'progress';
 
@@ -59,7 +58,6 @@ export default function LearnerDetailPage() {
   const [videoSearch, setVideoSearch] = useState('');
   const [videoQuery, setVideoQuery] = useState('');
   const [assignPage, setAssignPage] = useState(1);
-  const [progressPage, setProgressPage] = useState(1);
   const [previewVideo, setPreviewVideo] = useState<Video | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [loading, setLoading] = useState(true);
@@ -127,18 +125,18 @@ export default function LearnerDetailPage() {
     { skip: !id || tab !== 'assign' },
   );
 
+  useEffect(() => {
+    if (assignQuery.data?.page != null && assignQuery.data.page > assignPage) {
+      setAssignPage(assignQuery.data.page);
+    }
+  }, [assignQuery.data?.page, assignPage]);
+
   const assignVideos = assignQuery.data?.items ?? [];
   const assignTotal = assignQuery.data?.total ?? 0;
   const assignLoading = assignQuery.isLoading && !assignQuery.data;
-
-  useEffect(() => {
-    setProgressPage(1);
-  }, [assignments.length]);
-
-  const progressPageItems = useMemo(() => {
-    const start = (progressPage - 1) * PROGRESS_PAGE_SIZE;
-    return assignments.slice(start, start + PROGRESS_PAGE_SIZE);
-  }, [assignments, progressPage]);
+  const assignHasMore = Boolean(
+    assignQuery.data && assignQuery.data.page < assignQuery.data.totalPages,
+  );
 
   const progressTotals = useMemo(() => {
     return assignments.reduce(
@@ -482,11 +480,17 @@ export default function LearnerDetailPage() {
                       );
                     })}
                   </ul>
-                  <Pagination
-                    page={assignPage}
-                    pageSize={ASSIGN_PAGE_SIZE}
-                    total={assignTotal}
-                    onPageChange={setAssignPage}
+                  <p className="border-t border-stone-100 px-4 py-2 text-xs text-stone-500">
+                    Showing {assignVideos.length} of {assignTotal}
+                  </p>
+                  <InfiniteScrollSentinel
+                    hasMore={assignHasMore}
+                    loading={assignQuery.isFetching && assignPage > 1}
+                    onLoadMore={() => {
+                      if (assignHasMore && !assignQuery.isFetching) {
+                        setAssignPage((current) => current + 1);
+                      }
+                    }}
                   />
                 </div>
               )}
@@ -630,7 +634,7 @@ export default function LearnerDetailPage() {
 
                   <div className="overflow-hidden rounded-xl border border-stone-200">
                     <ul className="divide-y divide-stone-200">
-                      {progressPageItems.map((assignment) => {
+                      {assignments.map((assignment) => {
                       const stats = assignment.stats ?? {
                         totalQuestions: 0,
                         answered: 0,
@@ -745,12 +749,6 @@ export default function LearnerDetailPage() {
                       );
                     })}
                     </ul>
-                    <Pagination
-                      page={progressPage}
-                      pageSize={PROGRESS_PAGE_SIZE}
-                      total={assignments.length}
-                      onPageChange={setProgressPage}
-                    />
                   </div>
                 </>
               )}

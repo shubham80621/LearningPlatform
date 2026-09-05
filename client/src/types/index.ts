@@ -1,10 +1,23 @@
-/** Envelope returned by paginated list endpoints. */
 export interface Paginated<T> {
   items: T[];
   total: number;
   page: number;
   limit: number;
   totalPages: number;
+}
+
+export interface LearnerProgressSummary {
+  videos: number;
+  videosCompleted: number;
+  videosInProgress: number;
+  videosAssigned: number;
+  watchSum: number;
+  avgWatchPercent: number;
+  totalQuestions: number;
+  answered: number;
+  correct: number;
+  incorrect: number;
+  unanswered: number;
 }
 
 export type UserRole = 'admin' | 'learner';
