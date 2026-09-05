@@ -9,10 +9,8 @@ import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import AdminDashboardPage from './pages/admin/DashboardPage';
 import AdminVideosPage from './pages/admin/VideosPage';
-import CreateVideoPage from './pages/admin/CreateVideoPage';
-import EditVideoPage from './pages/admin/EditVideoPage';
+import VideoFormPage from './pages/admin/VideoFormPage';
 import AdminLearnersPage from './pages/admin/LearnersPage';
-import CreateLearnerPage from './pages/admin/CreateLearnerPage';
 import LearnerDetailPage from './pages/admin/LearnerDetailPage';
 import LearnerDashboardPage from './pages/learner/DashboardPage';
 import LearnerLearnPage from './pages/learner/LearnPage';
@@ -42,11 +40,11 @@ function App() {
             >
               <Route index element={<AdminDashboardPage />} />
               <Route path="videos" element={<AdminVideosPage />} />
-              <Route path="videos/new" element={<CreateVideoPage />} />
-              <Route path="videos/:id/edit" element={<EditVideoPage />} />
+              <Route path="videos/new" element={<VideoFormPage />} />
+              <Route path="videos/:id/edit" element={<VideoFormPage />} />
               <Route path="videos/:id/questions" element={<VideoQuestionsRedirect />} />
               <Route path="learners" element={<AdminLearnersPage />} />
-              <Route path="learners/new" element={<CreateLearnerPage />} />
+              <Route path="learners/new" element={<LearnerDetailPage />} />
               <Route path="learners/:id" element={<LearnerDetailPage />} />
               <Route
                 path="assignments"

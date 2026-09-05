@@ -1,11 +1,11 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   assignVideosToLearner,
   listLearnerAssignments,
   removeAssignment,
 } from '../../api/assignments';
-import { getLearner, updateLearner } from '../../api/users';
+import { createLearner, getLearner, updateLearner } from '../../api/users';
 import type { Assignment, User, Video } from '../../types';
 import { getApiErrorMessage } from '../../utils/apiError';
 import { formatDuration } from '../../utils/media';
@@ -20,11 +20,7 @@ import TextField from '../../components/form/TextField';
 import PasswordField from '../../components/form/PasswordField';
 import { fieldClassName } from '../../components/form/fieldStyles';
 import ThumbnailImage from '../../components/ThumbnailImage';
-import { InfiniteScrollSentinel } from '../../components/InfiniteScrollSentinel';
-import {
-  useInfinitePage,
-  useSyncInfinitePage,
-} from '../../hooks/infiniteQuery';
+import Pagination from '../../components/admin/Pagination';
 import { useListVideosQuery } from '../../store/api';
 import { useAppDispatch } from '../../store/hooks';
 import { invalidateLearnerLists } from '../../store/invalidate';
@@ -45,13 +41,16 @@ function tabClass(active: boolean) {
     : 'relative -mb-px rounded-t-lg border border-b-0 border-transparent bg-transparent px-4 py-2.5 text-sm font-medium text-stone-500 hover:text-ink';
 }
 
+/** Shared create (`/learners/new`) + edit (`/learners/:id`) learner page. */
 export default function LearnerDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const isCreate = !id;
+  const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const [searchParams, setSearchParams] = useSearchParams();
   const rawTab = searchParams.get('tab');
   const tab: LearnerTab =
-    rawTab === 'assign' || rawTab === 'progress' ? rawTab : 'info';
+    !isCreate && (rawTab === 'assign' || rawTab === 'progress') ? rawTab : 'info';
 
   const [learner, setLearner] = useState<User | null>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -61,15 +60,10 @@ export default function LearnerDetailPage() {
   const [selectedVideoIds, setSelectedVideoIds] = useState<string[]>([]);
   const [videoSearch, setVideoSearch] = useState('');
   const [videoQuery, setVideoQuery] = useState('');
-  const {
-    page: assignPage,
-    reset: resetAssignPage,
-    loadMore: loadMoreAssign,
-    syncCachedPage: syncAssignPage,
-  } = useInfinitePage();
+  const [assignPage, setAssignPage] = useState(1);
   const [previewVideo, setPreviewVideo] = useState<Video | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!isCreate);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -96,8 +90,12 @@ export default function LearnerDetailPage() {
   };
 
   useEffect(() => {
+    if (isCreate) {
+      setLoading(false);
+      return;
+    }
     void load();
-  }, [id]);
+  }, [id, isCreate]);
 
   useEffect(() => {
     if (!id || tab !== 'progress') return;
@@ -120,8 +118,8 @@ export default function LearnerDetailPage() {
   }, [videoSearch]);
 
   useEffect(() => {
-    resetAssignPage();
-  }, [videoQuery, resetAssignPage]);
+    setAssignPage(1);
+  }, [videoQuery]);
 
   const assignQuery = useListVideosQuery(
     {
@@ -131,16 +129,12 @@ export default function LearnerDetailPage() {
       unassignedFor: id,
       search: videoQuery || undefined,
     },
-    { skip: !id || tab !== 'assign' },
+    { skip: isCreate || !id || tab !== 'assign' },
   );
-  useSyncInfinitePage(syncAssignPage, assignQuery.data?.page);
 
   const assignVideos = assignQuery.data?.items ?? [];
   const assignTotal = assignQuery.data?.total ?? 0;
   const assignLoading = assignQuery.isLoading && !assignQuery.data;
-  const assignHasMore = Boolean(
-    assignQuery.data && assignQuery.data.page < assignQuery.data.totalPages,
-  );
 
   const progressTotals = useMemo(() => {
     return assignments.reduce(
@@ -191,14 +185,14 @@ export default function LearnerDetailPage() {
     else setSearchParams({ tab: next });
   };
 
-  const validateInfo = () => {
+  const validateInfo = (requirePassword: boolean) => {
     const next: FieldErrors = {};
     if (!name.trim() || name.trim().length < 2) {
       next.name = 'Name must be at least 2 characters.';
     }
     const emailError = validateEmail(email);
     if (emailError) next.email = emailError;
-    if (password) {
+    if (requirePassword || password) {
       const passwordError = validatePassword(password);
       if (passwordError) next.password = passwordError;
     }
@@ -208,13 +202,23 @@ export default function LearnerDetailPage() {
 
   const handleSaveInfo = async (event: FormEvent) => {
     event.preventDefault();
-    if (!id) return;
     setError('');
     setMessage('');
-    if (!validateInfo()) return;
+    if (!validateInfo(isCreate)) return;
 
     setSubmitting(true);
     try {
+      if (isCreate) {
+        const created = await createLearner({
+          name: name.trim(),
+          email: email.trim(),
+          password,
+        });
+        invalidateLearnerLists(dispatch);
+        navigate(`/admin/learners/${created.id}`);
+        return;
+      }
+      if (!id) return;
       const updated = await updateLearner(id, {
         name: name.trim(),
         email: email.trim(),
@@ -225,7 +229,14 @@ export default function LearnerDetailPage() {
       setMessage('Learner details saved.');
       invalidateLearnerLists(dispatch);
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Could not update learner.'));
+      setError(
+        getApiErrorMessage(
+          err,
+          isCreate
+            ? 'Could not create learner. Email may already be in use.'
+            : 'Could not update learner.',
+        ),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -284,15 +295,29 @@ export default function LearnerDetailPage() {
   return (
     <div>
       <AdminPageHeader
-        title={learner ? `Edit ${learner.name}` : 'Edit learner'}
-        subtitle="Update account details, assign published videos, and review progress."
+        title={
+          isCreate
+            ? 'Create learner'
+            : learner
+              ? `Edit ${learner.name}`
+              : 'Edit learner'
+        }
+        subtitle={
+          isCreate
+            ? 'Add a learner account that can log in and receive assigned lessons.'
+            : 'Update account details, assign published videos, and review progress.'
+        }
       />
 
       <AdminSectionToolbar
         breadcrumbs={[
           { label: 'Admin', to: '/admin' },
           { label: 'Learners', to: '/admin/learners' },
-          { label: learner?.name ?? 'Edit learner' },
+          {
+            label: isCreate
+              ? 'Create learner'
+              : (learner?.name ?? 'Edit learner'),
+          },
         ]}
         actions={
           <Link
@@ -305,40 +330,46 @@ export default function LearnerDetailPage() {
       />
 
       <div>
-        <div role="tablist" aria-label="Edit learner sections" className="flex items-end gap-1">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === 'info'}
-            onClick={() => setTab('info')}
-            className={tabClass(tab === 'info')}
-          >
-            Basic info
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === 'assign'}
-            onClick={() => setTab('assign')}
-            className={tabClass(tab === 'assign')}
-          >
-            Assign videos
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === 'progress'}
-            onClick={() => setTab('progress')}
-            className={tabClass(tab === 'progress')}
-          >
-            Progress
-          </button>
-        </div>
+        {!isCreate && (
+          <div role="tablist" aria-label="Edit learner sections" className="flex items-end gap-1">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === 'info'}
+              onClick={() => setTab('info')}
+              className={tabClass(tab === 'info')}
+            >
+              Basic info
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === 'assign'}
+              onClick={() => setTab('assign')}
+              className={tabClass(tab === 'assign')}
+            >
+              Assign videos
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === 'progress'}
+              onClick={() => setTab('progress')}
+              className={tabClass(tab === 'progress')}
+            >
+              Progress
+            </button>
+          </div>
+        )}
 
         <div
-          className={`border border-stone-200 bg-white p-5 shadow-sm md:p-6 ${
-            tab === 'info' ? 'rounded-b-xl rounded-tr-xl' : 'rounded-xl'
-          }`}
+          className={
+            isCreate
+              ? 'rounded-2xl border border-stone-200 bg-white p-5 shadow-sm md:p-6'
+              : `border border-stone-200 bg-white p-5 shadow-sm md:p-6 ${
+                  tab === 'info' ? 'rounded-b-xl rounded-tr-xl' : 'rounded-xl'
+                }`
+          }
           role="tabpanel"
         >
           {error && (
@@ -380,7 +411,7 @@ export default function LearnerDetailPage() {
               />
               <div>
                 <PasswordField
-                  label="New password"
+                  label={isCreate ? 'Temporary password' : 'New password'}
                   name="password"
                   value={password}
                   onChange={(event) => {
@@ -390,17 +421,30 @@ export default function LearnerDetailPage() {
                     }
                   }}
                   error={fieldErrors.password}
+                  placeholder={
+                    isCreate
+                      ? 'At least 8 characters'
+                      : 'Leave blank to keep current password'
+                  }
                 />
-                <p className="mt-1.5 text-xs text-stone-500">
-                  Leave blank to keep the current password.
-                </p>
+                {!isCreate && (
+                  <p className="mt-1.5 text-xs text-stone-500">
+                    Leave blank to keep the current password.
+                  </p>
+                )}
               </div>
               <button
                 type="submit"
                 disabled={submitting}
                 className="rounded-xl bg-ink px-4 py-2.5 text-sm font-medium text-white hover:bg-stone-800 disabled:opacity-60"
               >
-                {submitting ? 'Saving…' : 'Save changes'}
+                {submitting
+                  ? isCreate
+                    ? 'Creating…'
+                    : 'Saving…'
+                  : isCreate
+                    ? 'Create learner'
+                    : 'Save changes'}
               </button>
             </form>
           ) : tab === 'assign' ? (
@@ -484,17 +528,11 @@ export default function LearnerDetailPage() {
                       );
                     })}
                   </ul>
-                  <p className="border-t border-stone-100 px-4 py-2 text-xs text-stone-500">
-                    Showing {assignVideos.length} of {assignTotal}
-                  </p>
-                  <InfiniteScrollSentinel
-                    hasMore={assignHasMore}
-                    loading={assignQuery.isFetching && assignPage > 1}
-                    onLoadMore={() => {
-                      if (assignHasMore && !assignQuery.isFetching) {
-                        loadMoreAssign();
-                      }
-                    }}
+                  <Pagination
+                    page={assignPage}
+                    pageSize={ASSIGN_PAGE_SIZE}
+                    total={assignTotal}
+                    onPageChange={setAssignPage}
                   />
                 </div>
               )}

@@ -22,8 +22,8 @@ const baseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:3000/api').re
 
 /**
  * Server-state cache (RTK Query).
- * List endpoints merge pages into one cache entry (infinite scroll).
- * Dashboard uses refetchOnMountOrArgChange for a silent background refresh.
+ * Learner assignment lists merge pages (infinite scroll).
+ * Admin video/learner lists keep one page per cache key (button pagination).
  */
 export const api = createApi({
   reducerPath: 'api',
@@ -55,9 +55,6 @@ export const api = createApi({
           },
         };
       },
-      serializeQueryArgs: infiniteSerializeArgs,
-      merge: infiniteMerge,
-      forceRefetch: infiniteForceRefetch,
       providesTags: [{ type: 'VideoList', id: 'LIST' }],
     }),
 
@@ -74,9 +71,6 @@ export const api = createApi({
           },
         };
       },
-      serializeQueryArgs: infiniteSerializeArgs,
-      merge: infiniteMerge,
-      forceRefetch: infiniteForceRefetch,
       providesTags: [{ type: 'LearnerList', id: 'LIST' }],
     }),
 

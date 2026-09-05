@@ -1,28 +1,23 @@
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AdminPageHeader from '../../components/admin/AdminPageHeader';
 import AdminSectionToolbar from '../../components/admin/AdminSectionToolbar';
-import { InfiniteScrollSentinel } from '../../components/InfiniteScrollSentinel';
-import {
-  useInfinitePage,
-  useSyncInfinitePage,
-} from '../../hooks/infiniteQuery';
+import Pagination from '../../components/admin/Pagination';
 import { useListLearnersQuery } from '../../store/api';
 
 const PAGE_SIZE = 8;
 
 export default function AdminLearnersPage() {
   const navigate = useNavigate();
-  const { page, loadMore, syncCachedPage } = useInfinitePage();
+  const [page, setPage] = useState(1);
 
   const { data, isLoading, isFetching, isError } = useListLearnersQuery({
     page,
     limit: PAGE_SIZE,
   });
-  useSyncInfinitePage(syncCachedPage, data?.page);
 
   const learners = data?.items ?? [];
   const total = data?.total ?? 0;
-  const hasMore = Boolean(data && data.page < data.totalPages);
   const showInitialLoader = isLoading && !data;
 
   return (
@@ -68,7 +63,7 @@ export default function AdminLearnersPage() {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
+            <div className={`overflow-x-auto ${isFetching ? 'opacity-70' : ''}`}>
               <table className="min-w-full text-left text-sm">
                 <thead className="bg-stone-50 text-stone-500">
                   <tr>
@@ -123,15 +118,11 @@ export default function AdminLearnersPage() {
                 </tbody>
               </table>
             </div>
-            <p className="border-t border-stone-100 px-5 py-2 text-xs text-stone-500">
-              Showing {learners.length} of {total}
-            </p>
-            <InfiniteScrollSentinel
-              hasMore={hasMore}
-              loading={isFetching && page > 1}
-              onLoadMore={() => {
-                if (hasMore && !isFetching) loadMore();
-              }}
+            <Pagination
+              page={page}
+              pageSize={PAGE_SIZE}
+              total={total}
+              onPageChange={setPage}
             />
           </>
         )}

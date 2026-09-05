@@ -5,13 +5,9 @@ import { getApiErrorMessage } from '../../utils/apiError';
 import { formatDuration } from '../../utils/media';
 import AdminPageHeader from '../../components/admin/AdminPageHeader';
 import AdminSectionToolbar from '../../components/admin/AdminSectionToolbar';
+import Pagination from '../../components/admin/Pagination';
 import ThumbnailImage from '../../components/ThumbnailImage';
 import ConfirmDialog from '../../components/ConfirmDialog';
-import { InfiniteScrollSentinel } from '../../components/InfiniteScrollSentinel';
-import {
-  useInfinitePage,
-  useSyncInfinitePage,
-} from '../../hooks/infiniteQuery';
 import {
   useListVideosQuery,
   useSetVideoPublishedMutation,
@@ -23,16 +19,14 @@ export default function AdminVideosPage() {
   const navigate = useNavigate();
   const [error, setError] = useState('');
   const [pendingUnpublish, setPendingUnpublish] = useState<Video | null>(null);
-  const { page, loadMore, syncCachedPage } = useInfinitePage();
+  const [page, setPage] = useState(1);
 
   const { data, isLoading, isFetching, isError, error: queryError } =
     useListVideosQuery({ page, limit: PAGE_SIZE });
-  useSyncInfinitePage(syncCachedPage, data?.page);
   const [setPublished, { isLoading: isUpdating }] = useSetVideoPublishedMutation();
 
   const videos = data?.items ?? [];
   const total = data?.total ?? 0;
-  const hasMore = Boolean(data && data.page < data.totalPages);
   const showInitialLoader = isLoading && !data;
 
   const publishVideo = async (video: Video) => {
@@ -105,7 +99,7 @@ export default function AdminVideosPage() {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
+            <div className={`overflow-x-auto ${isFetching ? 'opacity-70' : ''}`}>
               <table className="min-w-full text-left text-sm">
                 <thead className="bg-stone-50 text-stone-500">
                   <tr>
@@ -193,15 +187,11 @@ export default function AdminVideosPage() {
                 </tbody>
               </table>
             </div>
-            <p className="border-t border-stone-100 px-5 py-2 text-xs text-stone-500">
-              Showing {videos.length} of {total}
-            </p>
-            <InfiniteScrollSentinel
-              hasMore={hasMore}
-              loading={isFetching && page > 1}
-              onLoadMore={() => {
-                if (hasMore && !isFetching) loadMore();
-              }}
+            <Pagination
+              page={page}
+              pageSize={PAGE_SIZE}
+              total={total}
+              onPageChange={setPage}
             />
           </>
         )}
