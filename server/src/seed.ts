@@ -3,7 +3,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { MongooseModule, getModelToken } from '@nestjs/mongoose';
 import * as bcrypt from 'bcrypt';
-import { existsSync } from 'fs';
+import { copyFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { Model, Types } from 'mongoose';
 import {
@@ -17,7 +17,7 @@ import {
   QuestionSchema,
   QuestionType,
 } from './questions/schemas/question.schema';
-import { UPLOAD_ROOT } from './uploads/upload.constants';
+import { IMAGE_UPLOAD_DIR, UPLOAD_ROOT } from './uploads/upload.constants';
 import { User, UserRole, UserSchema } from './users/schemas/user.schema';
 import { Video, VideoSchema } from './videos/schemas/video.schema';
 
@@ -26,13 +26,31 @@ import { Video, VideoSchema } from './videos/schemas/video.schema';
  * Every seeded video reuses this file so demos work without extra uploads.
  */
 const DEMO_VIDEO_FILE = '3656cac4-34c0-48d5-b2dd-22097dd552fb.mov';
+/**
+ * Thumbnails live in server/seed-assets/thumbnails/ (committed) and are
+ * copied into uploads/images/ on each seed run.
+ */
 const DEMO_THUMBS = [
-  'c5e867d0-dbb8-4ddf-85bd-f4b593081b44.png',
-  '698f06ce-c7bb-4c96-8cf4-63ddb1b3d572.png',
-  'dd8b9f23-bd73-4114-813e-7fc2bed54996.png',
-];
+  'handwriting-skills.png',
+  'learn-everything-fast.png',
+  'online-course.jpg',
+] as const;
+const SEED_THUMB_DIR = join(__dirname, '..', 'seed-assets', 'thumbnails');
 /** Known duration of the demo .mov (seconds). */
 const DEMO_DURATION = 31;
+
+function ensureDemoThumbnails() {
+  mkdirSync(IMAGE_UPLOAD_DIR, { recursive: true });
+  for (const thumb of DEMO_THUMBS) {
+    const source = join(SEED_THUMB_DIR, thumb);
+    if (!existsSync(source)) {
+      throw new Error(
+        `Seed thumbnail missing at seed-assets/thumbnails/${thumb}.`,
+      );
+    }
+    copyFileSync(source, join(IMAGE_UPLOAD_DIR, thumb));
+  }
+}
 
 /**
  * Volume knobs. Sized so every paginated list needs more than one page:
@@ -509,14 +527,7 @@ async function seed() {
       `Demo video missing at uploads/videos/${DEMO_VIDEO_FILE}. Upload one video first, then re-run seed.`,
     );
   }
-  for (const thumb of DEMO_THUMBS) {
-    const thumbPath = join(UPLOAD_ROOT, 'images', thumb);
-    if (!existsSync(thumbPath)) {
-      throw new Error(
-        `Demo thumbnail missing at uploads/images/${thumb}. Upload a thumbnail first, then re-run seed.`,
-      );
-    }
-  }
+  ensureDemoThumbnails();
 
   const app = await NestFactory.createApplicationContext(SeedModule);
   const userModel = app.get<Model<User>>(getModelToken(User.name));
