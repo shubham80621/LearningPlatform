@@ -15,6 +15,40 @@ body {
   color: #111827;
 }
 
+/* macOS-like overlay scrollbars — thin thumb, transparent gutter */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(0 0 0 / 0.28) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+  background: transparent;
+}
+
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-track-piece,
+*::-webkit-scrollbar-corner {
+  background: transparent;
+  border: none;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: rgb(0 0 0 / 0.22);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(0 0 0 / 0.38);
+}
+
+*::-webkit-scrollbar-thumb:active {
+  background-color: rgb(0 0 0 / 0.48);
+}
+
 a,
 button,
 [role='tab'],

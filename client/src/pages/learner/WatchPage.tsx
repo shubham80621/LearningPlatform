@@ -63,7 +63,6 @@ export default function LearnerWatchPage() {
     'all' | 'in_progress' | 'not_started' | 'completed'
   >('all');
   const [playlistPage, setPlaylistPage] = useState(1);
-  const [playlistRoot, setPlaylistRoot] = useState<Element | null>(null);
 
   const playlistStatus =
     playlistFilter === 'completed'
@@ -739,12 +738,9 @@ export default function LearnerWatchPage() {
           ) : null}
         </div>
 
-        {/* RIGHT — related/playlist only (YouTube suggestions column) */}
-        <aside
-          ref={setPlaylistRoot}
-          className="min-w-0 lg:sticky lg:top-16 lg:max-h-[calc(100vh-4.5rem)] lg:overflow-y-auto lg:pr-1"
-        >
-          <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
+        {/* RIGHT — related/playlist (scrolls with the page, one window scrollbar) */}
+        <aside className="min-w-0">
+          <div className="mb-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             {(
               [
                 { id: 'all', label: 'All' },
@@ -843,7 +839,6 @@ export default function LearnerWatchPage() {
           <InfiniteScrollSentinel
             hasMore={playlistHasMore}
             loading={playlistQuery.isFetching && playlistPage > 1}
-            root={playlistRoot}
             onLoadMore={() => {
               if (playlistHasMore && !playlistQuery.isFetching) {
                 setPlaylistPage((current) => current + 1);
